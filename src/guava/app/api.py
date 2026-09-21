@@ -83,7 +83,11 @@ def launch_app(
             # It's already a FiftyOne Dataset
             fo_dataset = dataset
 
-    launch_kwargs: dict[str, Any] = {}
+    launch_kwargs: dict[str, Any] = {
+        "dataset": fo_dataset,
+        "auto": auto,
+        "remote": remote,
+    }
     if port is not None:
         launch_kwargs["port"] = port
     if address is not None:
@@ -92,13 +96,13 @@ def launch_app(
         launch_kwargs["height"] = height
     launch_kwargs.update(kwargs)
 
-    session = fo.launch_app(
-        dataset=fo_dataset,
-        auto=auto,
-        remote=remote,
-        desktop=desktop,
-        **launch_kwargs,
-    )
+    import inspect
+    sig = inspect.signature(fo.launch_app)
+    if "desktop" in sig.parameters and desktop:
+        launch_kwargs["desktop"] = desktop
+
+    session = fo.launch_app(**launch_kwargs)
+
 
     _active_session = session
     return session

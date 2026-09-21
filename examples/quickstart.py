@@ -96,7 +96,21 @@ print("   session = gv.launch_app(ds)")
 print("   # Opens browser at http://localhost:5151")
 print("   # Features: Sample Grid, Embeddings Panel, Filtering, Tagging")
 
+if "--app" in sys.argv or "-a" in sys.argv:
+    print("\n🚀 Đang mở giao diện Web App trên trình duyệt (http://localhost:5151)...")
+    print("   Nhấn Ctrl+C trong terminal này để dừng.")
+    session = gv.launch_app(port=5151, auto=True)
+    try:
+        session.wait()
+    except KeyboardInterrupt:
+        print("\n🛑 Đã tắt Web App.")
+else:
+    print("\n💡 Mẹo: Để mở giao diện Web App trực tiếp trên trình duyệt, chạy:")
+    print("   python examples/launch_app.py")
+    print("   hoặc: python examples/quickstart.py --app")
+
 print("\n" + "=" * 65)
 print("✅  Guava is ready to use!")
 print("📚 Full docs: https://github.com/your-org/guava")
 print("=" * 65)
+

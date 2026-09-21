@@ -1,0 +1,1 @@
+function e(e,t){return e instanceof Error?e.message:t??String(e)}function t(e,t){return e instanceof Error&&e.message?e.message:typeof e==`string`&&e?e:typeof e==`object`&&e&&`message`in e&&typeof e.message==`string`&&e.message?e.message:t??String(e)}function n(t,n){return t instanceof Error?t:Error(e(t,n))}export{e as n,n as r,t};

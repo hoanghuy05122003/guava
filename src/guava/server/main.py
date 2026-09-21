@@ -23,7 +23,7 @@ os.environ["FIFTYONE_SERVER"] = "1"
 import fiftyone as fo
 import fiftyone.constants as foc
 
-from fiftyone.server.app import app
+from guava.server.app import app
 from fiftyone.server.events import set_port
 
 DEBUG_LOGGING = fo.config.logging_level == "DEBUG"

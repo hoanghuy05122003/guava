@@ -83,6 +83,17 @@ def launch_app(
             # It's already a FiftyOne Dataset
             fo_dataset = dataset
 
+    # Configure FiftyOne to use Guava's native server and static assets
+    import os
+    import fiftyone.constants as foc
+    import fiftyone.core.service as fos
+
+    guava_server_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "server")
+    )
+    foc.SERVER_DIR = guava_server_dir
+    fos.ServerService.working_dir = guava_server_dir
+
     launch_kwargs: dict[str, Any] = {
         "dataset": fo_dataset,
         "auto": auto,
@@ -102,6 +113,7 @@ def launch_app(
         launch_kwargs["desktop"] = desktop
 
     session = fo.launch_app(**launch_kwargs)
+
 
 
     _active_session = session

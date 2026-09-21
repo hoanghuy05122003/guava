@@ -88,7 +88,7 @@ def load(
         # Load a folder of images
         ds = gv.load("images", "/path/to/images")
     """
-    from guava.core.dataset import Dataset as GuavaDataset
+    from guava.core.guava_dataset import GuavaDataset
 
     fmt = FORMAT_ALIASES.get(format.lower(), format)
     path = Path(path)
@@ -166,10 +166,16 @@ def detect_format(path: str | Path) -> str | None:
 
     try:
         from datumaro.components.environment import DEFAULT_ENVIRONMENT
-        from datumaro.components.format_detection import detect_dataset_format
-
-        detected = detect_dataset_format(str(path), DEFAULT_ENVIRONMENT.importers)
-        return detected
+        env = DEFAULT_ENVIRONMENT
+        detected = []
+        for fmt in env.importers:
+            try:
+                importer = env.importers[fmt]
+                if hasattr(importer, 'detect') and importer.detect(str(path), env):
+                    detected.append(fmt)
+            except Exception:
+                pass
+        return detected[0] if detected else None
     except Exception:
         return None
 
@@ -183,7 +189,7 @@ def list_formats() -> list[str]:
     """
     try:
         from datumaro.components.environment import DEFAULT_ENVIRONMENT
-        native = sorted(DEFAULT_ENVIRONMENT.importers.keys())
+        native = sorted(list(DEFAULT_ENVIRONMENT.importers))
     except ImportError:
         native = []
 

@@ -23,7 +23,7 @@ Usage::
 from guava.version import __version__
 
 # ── Core data model ─────────────────────────────────────────────────────────
-from guava.core.dataset import Dataset  # noqa: F401 — Guava unified Dataset
+from guava.core.guava_dataset import GuavaDataset, Dataset  # noqa: F401
 
 # Try importing Datumaro types (optional, only if datumaro is installed)
 try:
@@ -35,11 +35,16 @@ try:
         Polygon,
         Mask,
         Points,
-        Polyline,
         Caption,
         Cuboid3d,
         Ellipse,
     )
+    # PolyLine is the correct name in Datumaro (note capital L)
+    try:
+        from datumaro.components.annotation import PolyLine  # noqa: F401
+        Polyline = PolyLine  # alias for convenience
+    except ImportError:
+        pass
     from datumaro.components.media import Image, Video, PointCloud  # noqa: F401
     _DATUMARO_AVAILABLE = True
 except ImportError:
@@ -73,6 +78,7 @@ __all__ = [
     "__version__",
     # Core
     "Dataset",
+    "GuavaDataset",
     "DatasetItem",
     "Annotation",
     "Label",

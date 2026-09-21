@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Iterator
 if TYPE_CHECKING:
     pass
 
-__all__ = ["GuavaDataset"]
+__all__ = ["GuavaDataset", "Dataset"]
 
 
 class GuavaDataset:
@@ -47,12 +47,14 @@ class GuavaDataset:
         *,
         name: str = "dataset",
         media_type: str = "image",
+        items: list[Any] | None = None,
     ) -> None:
         self._name = name
         self._media_type = media_type
         self._datum_ds = datumaro_dataset
         self._fo_dataset = None
         self._format: str | None = None
+        self._items: list[Any] | None = items
 
     @property
     def name(self) -> str:
@@ -67,11 +69,15 @@ class GuavaDataset:
         return self._format
 
     def __len__(self) -> int:
+        if self._items is not None:
+            return len(self._items)
         if self._datum_ds is not None:
             return len(self._datum_ds)
         return 0
 
     def __iter__(self) -> Iterator:
+        if self._items is not None:
+            return iter(self._items)
         if self._datum_ds is not None:
             return iter(self._datum_ds)
         return iter([])
@@ -101,6 +107,12 @@ class GuavaDataset:
 
     def filter(self, predicate: Callable) -> "GuavaDataset":
         """Filter items using a Python predicate function."""
+        if self._items is not None:
+            filtered_items = [item for item in self._items if predicate(item)]
+            result = GuavaDataset(name=f"{self._name}_filtered", items=filtered_items)
+            result._format = self._format
+            return result
+
         if self._datum_ds is None:
             return GuavaDataset(name=f"{self._name}_filtered")
 
@@ -115,7 +127,11 @@ class GuavaDataset:
         except Exception:
             new_datum_ds = None
 
-        result = GuavaDataset(new_datum_ds, name=f"{self._name}_filtered")
+        result = GuavaDataset(
+            new_datum_ds,
+            name=f"{self._name}_filtered",
+            items=filtered_items if new_datum_ds is None else None,
+        )
         result._format = self._format
         return result
 
@@ -134,21 +150,30 @@ class GuavaDataset:
         random.Random(seed).shuffle(items)
         total = len(items)
 
-        try:
-            from datumaro.components.dataset import Dataset as DatumDataset
-            cats = self._datum_ds.categories() if self._datum_ds else {}
-        except Exception:
-            cats = {}
+        cats = {}
+        if self._datum_ds is not None:
+            try:
+                cats = self._datum_ds.categories()
+            except Exception:
+                cats = {}
 
         splits = []
         start = 0
         for i, (ratio, split_name) in enumerate(zip(ratios, names)):
             end = total if i == len(ratios) - 1 else start + int(total * ratio)
-            try:
-                sub_ds = DatumDataset.from_iterable(items[start:end], categories=cats)
-            except Exception:
-                sub_ds = None
-            sub = GuavaDataset(sub_ds, name=split_name)
+            sub_items = items[start:end]
+            sub_ds = None
+            if self._datum_ds is not None:
+                try:
+                    from datumaro.components.dataset import Dataset as DatumDataset
+                    sub_ds = DatumDataset.from_iterable(sub_items, categories=cats)
+                except Exception:
+                    sub_ds = None
+            sub = GuavaDataset(
+                sub_ds,
+                name=split_name,
+                items=sub_items if sub_ds is None else None,
+            )
             sub._format = self._format
             splits.append(sub)
             start = end
@@ -158,14 +183,20 @@ class GuavaDataset:
     def merge(self, other: "GuavaDataset") -> "GuavaDataset":
         """Merge with another GuavaDataset."""
         items = list(self) + list(other)
-        try:
-            from datumaro.components.dataset import Dataset as DatumDataset
-            cats = {**(self._datum_ds.categories() if self._datum_ds else {})}
-            merged_ds = DatumDataset.from_iterable(items, categories=cats)
-        except Exception:
-            merged_ds = None
+        merged_ds = None
+        if self._datum_ds is not None or other._datum_ds is not None:
+            try:
+                from datumaro.components.dataset import Dataset as DatumDataset
+                cats = {**(self._datum_ds.categories() if self._datum_ds else {})}
+                merged_ds = DatumDataset.from_iterable(items, categories=cats)
+            except Exception:
+                merged_ds = None
 
-        result = GuavaDataset(merged_ds, name=f"{self._name}_merged")
+        result = GuavaDataset(
+            merged_ds,
+            name=f"{self._name}_merged",
+            items=items if merged_ds is None else None,
+        )
         result._format = self._format
         return result
 
@@ -174,13 +205,20 @@ class GuavaDataset:
         import random
         items = list(self)
         random.Random(seed).shuffle(items)
-        try:
-            from datumaro.components.dataset import Dataset as DatumDataset
-            cats = self._datum_ds.categories() if self._datum_ds else {}
-            sub_ds = DatumDataset.from_iterable(items[:count], categories=cats)
-        except Exception:
-            sub_ds = None
-        result = GuavaDataset(sub_ds, name=f"{self._name}_sample")
+        sample_items = items[:count]
+        sub_ds = None
+        if self._datum_ds is not None:
+            try:
+                from datumaro.components.dataset import Dataset as DatumDataset
+                cats = self._datum_ds.categories() if self._datum_ds else {}
+                sub_ds = DatumDataset.from_iterable(sample_items, categories=cats)
+            except Exception:
+                sub_ds = None
+        result = GuavaDataset(
+            sub_ds,
+            name=f"{self._name}_sample",
+            items=sample_items if sub_ds is None else None,
+        )
         result._format = self._format
         return result
 
@@ -220,6 +258,11 @@ class GuavaDataset:
             datum_ds = DatumDataset.from_iterable(items)
         except Exception:
             datum_ds = None
-        inst = cls(datum_ds, name=name or fo_ds.name)
+        inst = cls(datum_ds, name=name or fo_ds.name, items=items if datum_ds is None else None)
         inst._fo_dataset = fo_ds
         return inst
+
+
+# Alias Dataset -> GuavaDataset for convenient top-level usage
+Dataset = GuavaDataset
+

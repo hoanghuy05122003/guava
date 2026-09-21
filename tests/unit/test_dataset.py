@@ -3,7 +3,7 @@ Unit tests for Guava core — Dataset class.
 """
 import pytest
 
-from guava.core.dataset import Dataset
+from guava import Dataset
 
 
 class TestDatasetCreation:

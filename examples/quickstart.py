@@ -9,6 +9,13 @@ This script demonstrates the core capabilities of Guava:
   5. AI curation via FiftyOne Brain
   6. Visual exploration via FiftyOne App
 """
+import sys
+
+# Ensure UTF-8 console encoding on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import guava as gv
 
 print("🍈 Guava — Unified Dataset Management & Visualization Platform")
@@ -27,10 +34,9 @@ print("   ds = gv.load('coco', '/path/to/coco')")
 print("   (Skipping actual load — no dataset path provided)")
 
 # Create a demo dataset for illustration
-from guava.core.dataset import Dataset
 from unittest.mock import MagicMock
 
-demo_ds = Dataset(name="demo_dataset")
+demo_ds = gv.Dataset(name="demo_dataset")
 demo_ds._format = "coco"
 # Simulate items
 demo_ds._items = [MagicMock(

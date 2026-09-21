@@ -64,7 +64,7 @@ def filter_dataset(
         datum_ds = dataset.to_datumaro()
         from datumaro.components.dataset import Dataset as DatumDataset
         filtered = datum_ds.filter(xpath, filter_annotations=filter_annotations)
-        from guava.core.dataset import Dataset as GuavaDataset
+        from guava.core.guava_dataset import GuavaDataset
         result = GuavaDataset.from_datumaro(filtered, name=f"{dataset.name}_filtered")
         return result
 
@@ -115,7 +115,7 @@ def merge_datasets(datasets: list[Any], *, merge_policy: str = "union") -> Any:
         from datumaro.components.merge import ExactMerge
         merged = ExactMerge.merge(*datum_datasets)
 
-    from guava.core.dataset import Dataset as GuavaDataset
+    from guava.core.guava_dataset import GuavaDataset
     return GuavaDataset.from_datumaro(merged, name="merged_dataset")
 
 
@@ -260,7 +260,7 @@ def rename_labels(dataset: Any, mapping: dict[str, str]) -> Any:
     try:
         from datumaro.plugins.transforms import RemapLabels
         transformed = datum_ds.transform(RemapLabels, mapping={k: v for k, v in mapping.items()})
-        from guava.core.dataset import Dataset as GuavaDataset
+        from guava.core.guava_dataset import GuavaDataset
         return GuavaDataset.from_datumaro(transformed, name=dataset.name)
     except Exception as e:
         raise RuntimeError(f"Label rename failed: {e}") from e
@@ -288,7 +288,7 @@ def remap_labels(dataset: Any, mapping: dict[str, str | None], default: str = "k
             mapping={k: v for k, v in mapping.items() if v is not None},
             default=default_action,
         )
-        from guava.core.dataset import Dataset as GuavaDataset
+        from guava.core.guava_dataset import GuavaDataset
         return GuavaDataset.from_datumaro(transformed, name=dataset.name)
     except Exception as e:
         raise RuntimeError(f"Label remap failed: {e}") from e

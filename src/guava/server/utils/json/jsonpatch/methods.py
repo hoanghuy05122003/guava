@@ -1,0 +1,371 @@
+"""
+Apply JSON patch to python objects.
+
+| Copyright 2017-2026, Voxel51, Inc.
+| `voxel51.com <https://voxel51.com/>`_
+|
+"""
+
+from typing import Any, TypeVar, Union
+
+import jsonpointer
+
+import fiftyone.core.fields as fofld
+import fiftyone.core.frame as fof
+
+from fiftyone.server.utils.json.jsonpatch import RootDeleteError
+
+T = TypeVar("T")
+V = TypeVar("V")
+
+
+def to_json_pointer(
+    path: Union[str, jsonpointer.JsonPointer],
+) -> jsonpointer.JsonPointer:
+    """Converts a string path to a `jsonpointer.JsonPointer`."""
+
+    if isinstance(path, jsonpointer.JsonPointer):
+        return path
+
+    try:
+        return jsonpointer.JsonPointer(path)
+    except jsonpointer.JsonPointerException as err:
+        raise ValueError(f"Invalid JSON pointer path: {path}") from err
+
+
+def is_root_path(pointer: jsonpointer.JsonPointer) -> bool:
+    """Returns True if the pointer references the root document."""
+    return pointer.path in ("", "/")
+
+
+def get(src: T, path: Union[str, jsonpointer.JsonPointer]) -> V:
+    """Gets a value from an object.
+
+    Args:
+        src (T): The source object.
+        path (Union[str, jsonpointer.JsonPointer]): The JSON pointer path to
+          resolve.
+
+    Raises:
+        AttributeError: If the path cannot be fully resolved.
+
+    Returns:
+        V: The resolved value.
+    """
+    try:
+        pointer = to_json_pointer(path)
+
+        value = src
+        for name in pointer.parts:
+            # fo.Frames keys by integer frame number — coerce up-front
+            # rather than rely on FrameError's exception message.
+            if isinstance(value, fof.Frames):
+                value = value[int(name)]
+                continue
+
+            try:
+                value = getattr(value, name)
+                continue
+            except AttributeError as attr_err:
+                if hasattr(value, "__getitem__"):
+                    try:
+                        value = value[name]
+                        continue
+                    except TypeError as err:
+                        if "list indices must be integers or slices" in str(
+                            err
+                        ):
+                            idx = int(name)
+
+                            if not 0 <= idx < len(value):
+                                raise IndexError(
+                                    "List index out of range"
+                                ) from err
+
+                            value = value[idx]
+                            continue
+
+                raise attr_err
+
+        return value
+    except Exception as err:
+        raise AttributeError(f"Cannot resolve path `{path}`: {err}") from err
+
+
+def _coerce_array_field(target: Any, name: str, value: Any) -> Any:
+    """Decode a serialized array string into a numpy array before assignment.
+
+    A field-level JSON-patch op against a single array field (e.g. a Detection
+    ``mask``, or an embedding ``VectorField``) carries the wire value as a
+    base64-encoded string. A plain ``setattr`` leaves it a string, which the
+    field's ``validate`` then rejects ("Only numpy arrays may be used in an
+    array field"). Whole-element ops avoid this because ``from_dict`` runs field
+    deserialization; field-level ops must do the equivalent here.
+    """
+    if not isinstance(value, str):
+        return value
+
+    get_field = getattr(target, "_get_field", None)
+    if get_field is None:
+        return value
+
+    try:
+        field = get_field(name, allow_missing=True)
+    except Exception:
+        return value
+
+    if isinstance(field, (fofld.ArrayField, fofld.VectorField)):
+        return field.to_python(value)
+
+    return value
+
+
+def add(
+    src: T, path: Union[str, jsonpointer.JsonPointer], value: Union[T, V]
+) -> T:
+    """The "add" operation performs one of the following functions,
+    depending upon what the target location references:
+
+    o  If the target location specifies an array index, a new value is
+        inserted into the array at the specified index.
+    o  If the target location specifies an object member that does not
+        already exist, a new member is added to the object.
+    o  If the target location specifies an object member that does exist,
+        that member's value is replaced.
+
+    The operation object MUST contain a "value" member whose content
+    specifies the value to be added.
+
+    When the operation is applied, the target location MUST reference one
+    of:
+
+    o  The root of the target document - whereupon the specified value
+    becomes the entire content of the target document.
+
+    o  A member to add to an existing object - whereupon the supplied
+    value is added to that object at the indicated location.  If the
+    member already exists, it is replaced by the specified value.
+
+    o  An element to add to an existing array - whereupon the supplied
+    value is added to the array at the indicated location.  Any
+    elements at or above the specified index are shifted one position
+    to the right.  The specified index MUST NOT be greater than the
+    number of elements in the array.  If the "-" character is used to
+    index the end of the array (see [RFC6901]), this has the effect of
+    appending the value to the array.
+    """
+
+    pointer = to_json_pointer(path)
+    if is_root_path(pointer):
+        return value
+
+    target = get(src, jsonpointer.JsonPointer.from_parts(pointer.parts[:-1]))
+    name = pointer.parts[-1]
+    value = _coerce_array_field(target, name, value)
+
+    try:
+        if isinstance(target, fof.Frames):
+            target[int(name)] = value
+        elif hasattr(target, "__setitem__"):
+            try:
+                target[name] = value
+            except TypeError as type_err:
+                if "list indices must be integers or slices" not in str(
+                    type_err
+                ):
+                    raise type_err
+
+                if isinstance(target, list) and name == "-":
+                    target.append(value)
+                else:
+                    try:
+                        idx = int(name)
+                    except ValueError as val_err:
+                        raise val_err
+
+                    if not 0 <= idx <= len(target):
+                        raise IndexError(
+                            "List index out of range"
+                        ) from type_err
+
+                    target.insert(idx, value)
+            except KeyError:
+                # Item access rejects `name` (e.g. an embedded document's
+                # `_id`, whose db field name isn't a settable item key). Fall
+                # back to attribute assignment if available.
+                if not hasattr(target, name):
+                    raise
+
+                setattr(target, name, value)
+        else:
+            setattr(target, name, value)
+
+    except Exception as err:
+        raise ValueError(
+            f"Unable to add value with path: {pointer.path}"
+        ) from err
+
+    return src
+
+
+def copy(
+    src: T,
+    path: Union[str, jsonpointer.JsonPointer],
+    from_: Union[str, jsonpointer.JsonPointer],
+) -> T:
+    """The "copy" operation copies the value at a specified location to the
+     target location.
+
+    The operation object MUST contain a "from" member, which is a string
+    containing a JSON Pointer value that references the location in the
+    target document to copy the value from.
+
+    The "from" location MUST exist for the operation to be successful.
+
+    This operation is functionally identical to an "add" operation at the
+    target location using the value specified in the "from" member.
+    """
+
+    pointer = to_json_pointer(path)
+    from_pointer = to_json_pointer(from_)
+
+    value = get(src, from_pointer)
+
+    return add(src, pointer, value)
+
+
+def move(
+    src: T,
+    path: Union[str, jsonpointer.JsonPointer],
+    from_: Union[str, jsonpointer.JsonPointer],
+) -> T:
+    """The "move" operation removes the value at a specified location and
+    adds it to the target location.
+
+    The operation object MUST contain a "from" member, which is a string
+    containing a JSON Pointer value that references the location in the
+    target document to move the value from.
+
+    The "from" location MUST exist for the operation to be successful.
+
+    This operation is functionally identical to a "remove" operation on
+    the "from" location, followed immediately by an "add" operation at
+    the target location with the value that was just removed.
+
+    """
+    pointer = to_json_pointer(path)
+    from_pointer = to_json_pointer(from_)
+
+    value = get(src, from_pointer)
+    src = remove(src, from_pointer)
+
+    return add(src, pointer, value)
+
+
+def remove(src: T, path: Union[str, jsonpointer.JsonPointer]) -> T:
+    """The "remove" operation removes the value at the target location.
+
+    The target location MUST exist for the operation to be successful.
+
+    If removing an element from an array, any elements above the
+    specified index are shifted one position to the left.
+    """
+
+    pointer = to_json_pointer(path)
+
+    if is_root_path(pointer):
+        raise RootDeleteError("Cannot remove the root document")
+
+    target = get(src, jsonpointer.JsonPointer.from_parts(pointer.parts[:-1]))
+    name = pointer.parts[-1]
+
+    # ensure value exists
+    get(target, jsonpointer.JsonPointer.from_parts([name]))
+
+    try:
+        if isinstance(target, fof.Frames):
+            del target[int(name)]
+        elif hasattr(target, "__delitem__"):
+            try:
+                del target[name]
+            except TypeError as err:
+                if "list indices must be integers or slices" not in str(err):
+                    raise err
+
+                target.pop(int(name))
+        else:
+            delattr(target, name)
+
+    except Exception as err:
+        raise ValueError(
+            f"Unable to remove value with path: {pointer.path}"
+        ) from err
+
+    return src
+
+
+def replace(
+    src: T, path: Union[str, jsonpointer.JsonPointer], value: Union[T, V]
+) -> T:
+    """The "replace" operation replaces the value at the target location
+    with a new value.  The operation object MUST contain a "value" member
+    whose content specifies the replacement value.
+
+    The target location MUST exist for the operation to be successful.
+
+    This operation is functionally identical to a "remove" operation for
+    a value, followed immediately by an "add" operation at the same
+    location with the replacement value.
+    """
+    pointer = to_json_pointer(path)
+
+    if not is_root_path(pointer):
+        parent = get(
+            src, jsonpointer.JsonPointer.from_parts(pointer.parts[:-1])
+        )
+        if isinstance(parent, list):
+            # `add` inserts at a list index rather than overwriting, so the
+            # existing element must be removed first.
+            src = remove(src, pointer)
+        else:
+            # `add` overwrites object/dict members in place; removing first is
+            # unnecessary and fails for read-only members (e.g. an embedded
+            # document's `_id` property). Still verify the target exists.
+            get(src, pointer)
+
+    return add(src, pointer, value)
+
+
+def test(src: T, path: Union[str, jsonpointer.JsonPointer], value: V) -> T:
+    """The "test" operation tests that a value at the target location is
+    equal to a specified value.
+
+    The operation object MUST contain a "value" member that conveys the
+    value to be compared to the target location's value.
+
+    The target location MUST be equal to the "value" value for the
+    operation to be considered successful.
+
+    Here, "equal" means that the value at the target location and the
+    value conveyed by "value" are of the same JSON type, and that they
+    are considered equal by the following rules for that type:
+
+    o  strings: are considered equal if they contain the same number of
+       Unicode characters and their code points are byte-by-byte equal.
+
+    o  numbers: are considered equal if their values are numerically
+       equal.
+
+    o  arrays: are considered equal if they contain the same number of
+       values, and if each value can be considered equal to the value at
+       the corresponding position in the other array, using this list of
+       type-specific rules.
+    """
+
+    pointer = to_json_pointer(path)
+    target = src if not pointer.parts else get(src, pointer)
+
+    if value != target:
+        raise ValueError(f"Test operation failed for path:{pointer.path}")
+
+    return src

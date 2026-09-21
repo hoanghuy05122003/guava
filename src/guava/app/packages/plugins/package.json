@@ -1,0 +1,30 @@
+{
+    "name": "@fiftyone/plugins",
+    "author": "Voxel51, Inc.",
+    "version": "0.0.0",
+    "description": "Develop fiftyone plugins",
+    "homepage": "https://github.com/voxel51/fiftyone/app/packages/plugins",
+    "license": "Apache-2.0",
+    "bugs": {
+        "url": "https://github.com/voxel51/fiftyone/"
+    },
+    "main": "./src/index.ts",
+    "scripts": {
+        "dev": "vite",
+        "test": "vitest"
+    },
+    "private": true,
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "devDependencies": {
+        "@fiftyone/utilities": "workspace:^",
+        "prettier": "catalog:",
+        "react": "catalog:",
+        "vite": "catalog:"
+    },
+    "dependencies": {
+        "moment": "^2.29.4"
+    }
+}

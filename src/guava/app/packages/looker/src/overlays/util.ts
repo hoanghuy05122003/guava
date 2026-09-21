@@ -1,0 +1,449 @@
+/**
+ * Copyright 2017-2026, Voxel51, Inc.
+ */
+
+import { COLOR_BY, REGRESSION, getColor } from "@fiftyone/utilities";
+import colorString from "color-string";
+import { getRenderedScale } from "../util";
+import {
+  INFO_COLOR,
+  LABEL_SELECTION_GREEN,
+  LABEL_SELECTION_RED,
+  SELECTED_AND_HOVERED_COLOR,
+} from "../constants";
+import type {
+  BaseOptions,
+  BaseState,
+  Coloring,
+  Coordinates,
+  CustomizeColor,
+  LabelTagColor,
+  MaskTargets,
+  RgbMaskTargets,
+} from "../state";
+import type { RegularLabel } from "./base";
+
+export const t = (state: BaseState, x: number, y: number): Coordinates => {
+  const [ctlx, ctly, cw, ch] = state.canvasBBox;
+  return [ctlx + cw * x, ctly + ch * y];
+};
+
+/**
+ * Convert a draw-space length (`pointRadius`, `strokeWidth`, …) to image
+ * pixels, the space of `pixelCoordinates`/`dimensions` hit tests. Draw-space
+ * sizes are already zoom-compensated (divided by `scale` in `postProcess`),
+ * so the remaining factor is the window's fit scale.
+ */
+export const sizeInImagePixels = (state: BaseState, length: number): number =>
+  length /
+  getRenderedScale(
+    [state.windowBBox[2], state.windowBBox[3]],
+    state.dimensions,
+  );
+
+const strokeRect = (
+  ctx: CanvasRenderingContext2D,
+  state: Readonly<BaseState>,
+  color: string,
+) => {
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(...t(state, 0, 0));
+  ctx.lineTo(...t(state, 1, 0));
+  ctx.lineTo(...t(state, 1, 1));
+  ctx.lineTo(...t(state, 0, 1));
+  ctx.closePath();
+  ctx.stroke();
+};
+
+export const strokeCanvasRect = (
+  ctx: CanvasRenderingContext2D,
+  state: Readonly<BaseState>,
+  color: string,
+): void => {
+  ctx.lineWidth = state.strokeWidth;
+  ctx.setLineDash([]);
+  strokeRect(ctx, state, color);
+  ctx.setLineDash([state.dashLength]);
+  strokeRect(ctx, state, INFO_COLOR);
+  ctx.setLineDash([]);
+};
+
+/**
+ * Returns true if mask targets is RGB
+ */
+export function isRgbMaskTargets(
+  maskTargets: MaskTargets,
+): maskTargets is RgbMaskTargets {
+  if (!maskTargets || typeof maskTargets !== "object") {
+    throw new Error("mask targets is invalid");
+  }
+
+  return Object.keys(maskTargets)[0]?.startsWith("#") === true;
+}
+
+// Return true is string is a valid color
+export function isValidColor(color: string | undefined | null): boolean {
+  return CSS.supports("color", color);
+}
+
+// Convert any valid css color to the hex color
+export function convertToHex(color: string) {
+  if (!isValidColor(color)) return null;
+  const formatted = colorString.get(color);
+  if (formatted) {
+    return colorString.to.hex(formatted?.value);
+  }
+  return null;
+}
+
+export function normalizeMaskTargetsCase(maskTargets: MaskTargets) {
+  if (!maskTargets || !isRgbMaskTargets(maskTargets)) {
+    return maskTargets;
+  }
+
+  const normalizedMaskTargets: RgbMaskTargets = {};
+  Object.entries(maskTargets).forEach(([key, value]) => {
+    normalizedMaskTargets[key.toLocaleUpperCase()] = value;
+  });
+  return normalizedMaskTargets;
+}
+
+export const convertId = (obj: Record<string, any>): Record<string, any> => {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => {
+      if (Array.isArray(value)) {
+        return [key, value.map((item) => ({ ...item, id: item["_id"] }))];
+      }
+      return [key, value];
+    }),
+  );
+};
+
+export const getHashLabelColorByInstance = (label: RegularLabel): string => {
+  const hasIndex =
+    (typeof label.index === "string" || typeof label.index === "number") &&
+    !isNaN(label.index);
+
+  if (hasIndex) {
+    return `${label.label}-${label.index}-${label.instance?._id ?? ""}`;
+  }
+
+  if (label?.instance?._id) {
+    return `${label.label}-${label.instance?._id}`;
+  }
+
+  if (typeof label?.label !== "undefined" && typeof label?.id !== "undefined") {
+    return `${label.label}.${label.id}`;
+  }
+  return `${label.label}`;
+};
+
+export const shouldShowLabelTag = (
+  selectedLabelTags?: null | string[], // labelTags that are active
+  labelTags?: null | string[], // current label's tags
+) => {
+  return Boolean(
+    (selectedLabelTags?.length === 0 && labelTags?.length > 0) ||
+    selectedLabelTags?.some((tag) => labelTags?.includes(tag)),
+  );
+};
+
+type LabelColorProps = {
+  coloring: Coloring;
+  path: string;
+  label: RegularLabel;
+  isTagged: boolean;
+  labelTagColors: LabelTagColor;
+  customizeColorSetting: CustomizeColor[];
+  is3D?: boolean;
+  embeddedDocType: string;
+};
+
+export const getLabelColor = ({
+  coloring,
+  path,
+  label,
+  isTagged,
+  labelTagColors,
+  customizeColorSetting,
+  is3D = false,
+  embeddedDocType,
+}: LabelColorProps): string => {
+  const field = customizeColorSetting.find((s) => s.path === path);
+
+  if (coloring.by === COLOR_BY.INSTANCE) {
+    return getColor(
+      coloring.pool,
+      coloring.seed,
+      getHashLabelColorByInstance(label),
+    );
+  }
+
+  if (coloring.by === COLOR_BY.FIELD) {
+    // if the label is tagged, use _label_tags color rules
+    // otherwise use color rules for the field
+    if (isTagged) {
+      return getLabelColorByField({
+        path: "_label_tags",
+        coloring,
+        fieldColor: labelTagColors?.fieldColor,
+      });
+    } else {
+      return getLabelColorByField({
+        path,
+        coloring,
+        fieldColor: field?.fieldColor,
+      });
+    }
+  }
+
+  if (coloring.by === COLOR_BY.VALUE) {
+    if (isTagged) {
+      // if the label's tag is currently active, use the _label_tags color rules
+      // specified tag color > color by label tag's value > label tag field color > default label tag color
+
+      const tagColor = labelTagColors?.valueColors?.find((pair) =>
+        label.tags.includes(pair.value),
+      )?.color;
+
+      if (isValidColor(tagColor)) {
+        return tagColor;
+      } else {
+        return getLabelColorByField({
+          path: label.tags.length > 0 ? label.tags[0] : "_Label_tags",
+          coloring,
+          fieldColor: labelTagColors?.fieldColor,
+        });
+      }
+    } else {
+      // if the field has custom color rules, use the field/value specific rules
+      return getLabelColorByValue({
+        field,
+        label,
+        coloring,
+        is3D,
+        embeddedDocType,
+      });
+    }
+  }
+
+  return getColor(coloring.pool, coloring.seed, path);
+};
+
+const getLabelColorByField = ({
+  path,
+  coloring,
+  fieldColor,
+}: {
+  path: string;
+  coloring: Coloring;
+  fieldColor: string | undefined;
+}) => {
+  if (isValidColor(fieldColor)) {
+    return fieldColor;
+  }
+  return getColor(coloring.pool, coloring.seed, path);
+};
+
+const getLabelColorKey = (
+  field: CustomizeColor,
+  label: RegularLabel,
+  is3D: boolean,
+  embeddedDocType: string,
+) => {
+  let key;
+  if (field.colorByAttribute) {
+    if (field.colorByAttribute === "index") {
+      key = ["string", "number"].includes(typeof label.index)
+        ? "index"
+        : is3D
+          ? "_id"
+          : "id";
+    } else {
+      key = field.colorByAttribute;
+    }
+  } else {
+    key = embeddedDocType === REGRESSION ? "value" : "label";
+  }
+  return key;
+};
+
+const getLabelColorByValue = ({
+  field,
+  label,
+  coloring,
+  is3D,
+  embeddedDocType,
+}: {
+  field?: CustomizeColor;
+  label: RegularLabel;
+  coloring: Coloring;
+  is3D: boolean;
+  embeddedDocType: string;
+}) => {
+  let key;
+  if (field) {
+    key = getLabelColorKey(field, label, is3D, embeddedDocType);
+    // use the first value as the fallback value to get color,
+    // if it's a listField
+    const fallbackValue =
+      Array.isArray(label[key]) && label[key].length > 0
+        ? label[key][0]
+        : label[key];
+
+    // check if this label has a assigned color, use it if it is a valid color
+    const valueColor = field?.valueColors?.find((l) => {
+      if (["none", "null", "undefined"].includes(l.value?.toLowerCase())) {
+        return typeof label[key] === "string"
+          ? l.value?.toLowerCase === label[key]
+          : !label[key];
+      }
+      if (["True", "False"].includes(l.value?.toString())) {
+        return (
+          l.value?.toString().toLowerCase() ==
+          label[key]?.toString().toLowerCase()
+        );
+      }
+      return Array.isArray(label[key])
+        ? label[key]
+            .map((list) => list.toString())
+            .includes(l.value?.toString())
+        : l.value?.toString() == label[key]?.toString();
+    })?.color;
+
+    return isValidColor(valueColor)
+      ? valueColor
+      : getColor(coloring.pool, coloring.seed, fallbackValue);
+  } else {
+    key = embeddedDocType === REGRESSION ? "value" : "label";
+    return getColor(coloring.pool, coloring.seed, label[key]);
+  }
+};
+
+/**
+ * Four possible cases for stroke style if it's a label _with an instance_:
+ * 1. Label is neither selected nor hovered: default color
+ * 2. Label is hovered: white stroke
+ * 3. Instance is selected: stroke with dash of white and default color
+ * 4. Instance is selected and hovered: stroke with dash of orange and default color
+ */
+export function getInstanceStrokeStyles({
+  isSelected,
+  getColor,
+  isHoveringInstance,
+  dashLength,
+  labelSelectionColor,
+}: {
+  isSelected: boolean;
+  getColor: () => string;
+  isHoveringInstance: boolean;
+  dashLength: number;
+  labelSelectionColor?: string | null;
+}) {
+  // Main stroke color — override with label selection color when selected
+  let strokeColor =
+    labelSelectionColor && isSelected ? labelSelectionColor : getColor();
+  let overlayStrokeColor: string | null = null;
+  let overlayDash: number | null = null;
+
+  if (isHoveringInstance && !isSelected) {
+    strokeColor = INFO_COLOR;
+  }
+
+  if (isSelected && isHoveringInstance) {
+    overlayStrokeColor = SELECTED_AND_HOVERED_COLOR;
+    overlayDash = dashLength;
+  } else if (isSelected) {
+    overlayStrokeColor = INFO_COLOR;
+    overlayDash = dashLength;
+  }
+
+  return { strokeColor, overlayStrokeColor, overlayDash };
+}
+
+export interface LabelSelectionVisuals {
+  styleName: string;
+  /** The override color for the label, or null to keep the field's color */
+  color: string | null;
+}
+
+/**
+ * Resolves the visual style for a selected label based on its type and the
+ * configured label selection style. Returns null if the label is not selected.
+ */
+export function resolveLabelSelectionVisuals(
+  labelId: string,
+  options: BaseOptions,
+): LabelSelectionVisuals | null {
+  const { selectedLabels, selectedLabelTypes, labelSelectionStyle } = options;
+
+  if (!selectedLabels.includes(labelId)) {
+    return null;
+  }
+
+  const labelType = selectedLabelTypes[labelId] || "default";
+  const styleName = labelSelectionStyle[labelType] || "dashed";
+
+  switch (styleName) {
+    case "dashed-green":
+      return { styleName, color: LABEL_SELECTION_GREEN };
+    case "dashed-red":
+      return { styleName, color: LABEL_SELECTION_RED };
+    case "dashed":
+    default:
+      return { styleName, color: null };
+  }
+}
+
+const formatAttributeNumber = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (value % 1 === 0) {
+    return value.toLocaleString();
+  }
+
+  return Number(
+    value.toFixed(Math.abs(value) < 0.001 ? 6 : 3),
+  ).toLocaleString();
+};
+
+export const formatLabelAttributeValue = (value: unknown): string | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map(formatLabelAttributeValue)
+      .filter((part) => part !== null && part !== "");
+    return parts.length ? parts.join(", ") : null;
+  }
+
+  switch (typeof value) {
+    case "number":
+      return formatAttributeNumber(value);
+    case "boolean":
+      return value ? "True" : "False";
+    case "string":
+      return value;
+    default:
+      return null;
+  }
+};
+
+/**
+ * Render a label's shown attribute values as a comma separated string.
+ */
+export const getLabelAttributesText = (
+  label: object,
+  attributes: string[],
+): string =>
+  attributes
+    .map((name) =>
+      formatLabelAttributeValue((label as Record<string, unknown>)[name]),
+    )
+    .filter((value) => value !== null && value !== "")
+    .join(", ");

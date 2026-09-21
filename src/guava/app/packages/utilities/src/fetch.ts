@@ -1,0 +1,851 @@
+/// <reference path="./env.d.ts" />
+import {
+  EventSourceMessage,
+  fetchEventSource,
+} from "@microsoft/fetch-event-source";
+import fetchRetry from "fetch-retry";
+import { LRUCache } from "lru-cache";
+import { NetworkError, ServerError } from "./errors";
+
+const FETCH_CACHE_MAX_ENTRIES = 100;
+// 100 MB
+const FETCH_CACHE_MAX_SIZE_BYTES = 100 * 1024 * 1024;
+// 10 minutes
+const FETCH_CACHE_TTL = 10 * 60 * 1000;
+
+let fetchOrigin: string;
+let fetchFunctionSingleton: FetchFunction;
+let fetchFunctionExtendedSingleton: FetchFunctionExtended;
+let fetchHeaders: HeadersInit;
+let fetchPathPrefix = "";
+
+const fetchCache = new LRUCache<string, unknown>({
+  max: FETCH_CACHE_MAX_ENTRIES,
+  maxSize: FETCH_CACHE_MAX_SIZE_BYTES,
+  ttl: FETCH_CACHE_TTL,
+  sizeCalculation: (value) => {
+    try {
+      return JSON.stringify(value).length;
+    } catch {
+      return 1;
+    }
+  },
+});
+
+// Tracks in-flight requests to dedupe parallel fetches with the same cache key
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+/**
+ * Clears cached fetch responses.
+ */
+export const clearFetchCache = () => {
+  fetchCache.clear();
+  inFlightRequests.clear();
+};
+
+/**
+ * Supported methods for accessing response data.
+ */
+export type FetchResultType =
+  | "json"
+  | "blob"
+  | "text"
+  | "arrayBuffer"
+  | "response"
+  | "json-stream";
+
+/**
+ * Browser HTTP cache modes callers may request. "only-if-cached" is
+ * excluded: it is only valid with mode "same-origin", and every request
+ * here is sent with mode "cors", where the fetch would throw.
+ */
+export type BrowserCacheMode = Exclude<RequestCache, "only-if-cached">;
+
+/**
+ * Configuration for a `fetch` call.
+ */
+export type FetchFunctionConfig<T> = {
+  method: string;
+  path: string;
+  body?: T;
+  result?: FetchResultType;
+  retries?: number;
+  retryCodes?: number[];
+  errorHandler?: (response: Response) => void | Promise<void>;
+  headers?: Record<string, string>;
+  /**
+   * When true, enables caching of responses. The cache key is automatically
+   * derived from the request method, path, and body.
+   * @default false
+   */
+  cache?: boolean;
+  /**
+   * Browser HTTP cache mode for the underlying fetch. Byte-range readers
+   * pass "no-store": Chrome may answer a Range request from a cached
+   * superset block whose Content-Range does not match what was asked.
+   * @default "no-cache"
+   */
+  browserCache?: BrowserCacheMode;
+  /** Cancels the request and response-body read. */
+  signal?: AbortSignal;
+  /** Reports cumulative response-body bytes as they arrive. */
+  onProgress?: (loadedBytes: number) => void;
+};
+
+/**
+ * Parsed fetch response with response headers.
+ */
+export type FetchFunctionResult<T> = {
+  response: T;
+  headers?: Headers;
+};
+
+export interface FetchFunction {
+  <A, R>(
+    method: string,
+    path: string,
+    body?: A,
+    result?: FetchResultType,
+    retries?: number,
+    retryCodes?: number[],
+    errorHandler?: (response: Response) => void | Promise<void>,
+    headers?: Record<string, string>,
+  ): Promise<R>;
+}
+
+/**
+ * Extension of {@link FetchFunction} which provides response headers.
+ */
+export interface FetchFunctionExtended {
+  <A, R>(
+    method: string,
+    path: string,
+    body?: A,
+    result?: FetchResultType,
+    retries?: number,
+    retryCodes?: number[],
+    errorHandler?: (response: Response) => void | Promise<void>,
+    headers?: Record<string, string>,
+    signal?: AbortSignal,
+    onProgress?: (loadedBytes: number) => void,
+    browserCache?: BrowserCacheMode,
+  ): Promise<FetchFunctionResult<R>>;
+}
+
+/**
+ * Options for {@link getFetchFunction}.
+ */
+export type GetFetchFunctionOptions = {
+  /**
+   * When true, enables caching of responses. The cache key is automatically
+   * derived from the request method, path, and body.
+   * @default false
+   */
+  cache?: boolean;
+};
+
+/**
+ * Helper to wrap a fetch call with caching logic.
+ * Handles cache lookup, in-flight request deduplication, and cache storage.
+ */
+const withCache = <T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T>,
+): Promise<T> => {
+  if (fetchCache.has(cacheKey)) {
+    return Promise.resolve(fetchCache.get(cacheKey) as T);
+  }
+
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey) as Promise<T>;
+  }
+
+  const requestPromise = fetchFn()
+    .then((result) => {
+      fetchCache.set(cacheKey, result);
+      inFlightRequests.delete(cacheKey);
+      return result;
+    })
+    .catch((error) => {
+      inFlightRequests.delete(cacheKey);
+      throw error;
+    });
+
+  inFlightRequests.set(cacheKey, requestPromise);
+  return requestPromise;
+};
+
+const buildCacheKey = (method: string, path: string, body?: unknown): string =>
+  `${method}:${path}:${body ? JSON.stringify(body) : ""}`;
+
+/**
+ * Returns the configured fetch function singleton.
+ *
+ * @param options - Optional configuration for the fetch function.
+ * @param options.cache - When true, returns a fetch function that caches
+ * responses by URL (method + path + serialized body). Subsequent calls with
+ * the same parameters return the cached response. Use {@link clearFetchCache}
+ * to invalidate cached entries.
+ */
+export const getFetchFunction = (options?: GetFetchFunctionOptions) => {
+  if (!options?.cache) {
+    return fetchFunctionSingleton;
+  }
+
+  return <A, R>(
+    method: string,
+    path: string,
+    body?: A,
+    result?: FetchResultType,
+    retries?: number,
+    retryCodes?: number[],
+    errorHandler?: (response: Response) => void | Promise<void>,
+    headers?: Record<string, string>,
+  ): Promise<R> => {
+    const fetchResult = () =>
+      fetchFunctionSingleton<A, R>(
+        method,
+        path,
+        body,
+        result,
+        retries,
+        retryCodes,
+        errorHandler,
+        headers,
+      );
+
+    return result === "response"
+      ? fetchResult()
+      : withCache(buildCacheKey(method, path, body), fetchResult);
+  };
+};
+
+/**
+ * Wrapper for {@link getFetchFunction} which provides response headers and
+ * configuration via {@link FetchFunctionConfig}.
+ */
+export const getFetchFunctionExtended =
+  (): (<A, R>(
+    config: FetchFunctionConfig<A>,
+  ) => Promise<FetchFunctionResult<R>>) =>
+  <A, R>(config: FetchFunctionConfig<A>): Promise<FetchFunctionResult<R>> => {
+    const doFetch = () =>
+      fetchFunctionExtendedSingleton<A, R>(
+        config.method,
+        config.path,
+        config.body,
+        config.result,
+        config.retries,
+        config.retryCodes,
+        config.errorHandler,
+        config.headers,
+        config.signal,
+        config.onProgress,
+        config.browserCache,
+      );
+
+    if (config.cache && config.result !== "response") {
+      return withCache(
+        buildCacheKey(config.method, config.path, config.body),
+        doFetch,
+      );
+    }
+
+    return doFetch();
+  };
+
+export const getFetchHeaders = () => {
+  return fetchHeaders;
+};
+
+const headersAsRecord = (headers: HeadersInit): Record<string, string> => {
+  if (!headers) {
+    return {};
+  }
+
+  let result = {};
+
+  if (headers instanceof Headers) {
+    headers.forEach((value, name) => (result[name] = value));
+  } else if (Array.isArray(headers)) {
+    // [["header-1", "value-1"], ["header-2", "value-2"]]
+    headers.forEach(([name, value]) => (result[name] = value));
+  } else {
+    // {"header-1": "value-1", "header-2": "value-2"}
+    result = {
+      ...headers,
+    };
+  }
+
+  return result;
+};
+
+export const mergeHeaders = (
+  ...headers: HeadersInit[]
+): Record<string, string> => {
+  return (
+    headers
+      // convert everything to Record<string, string>
+      .map((h) => headersAsRecord(h))
+      // reduce with spread, ignoring any undefined values
+      .reduce((a, b) => (a && b ? { ...a, ...b } : (a ?? b)), {})
+  );
+};
+
+export const getFetchOrigin = () => {
+  if (hasWindow && window.FIFTYONE_SERVER_ADDRESS) {
+    return window.FIFTYONE_SERVER_ADDRESS;
+  }
+
+  return fetchOrigin;
+};
+
+export function getFetchPathPrefix(): string {
+  // window is not defined in the web worker
+  if (hasWindow && typeof window.FIFTYONE_SERVER_PATH_PREFIX === "string") {
+    return window.FIFTYONE_SERVER_PATH_PREFIX;
+  }
+
+  if (hasWindow) {
+    const proxy = new URL(window.location.toString()).searchParams.get("proxy");
+    return proxy ?? "";
+  }
+
+  return "";
+}
+
+export const setFetchParameters = (
+  origin: string,
+  headers: HeadersInit = {},
+  pathPrefix = "",
+) => {
+  fetchHeaders = headers;
+  fetchOrigin = origin;
+  fetchPathPrefix = pathPrefix;
+};
+
+export const getFetchParameters = () => {
+  return {
+    origin: fetchOrigin,
+    headers: fetchHeaders,
+    pathPrefix: fetchPathPrefix,
+  };
+};
+
+const joinFetchUrl = (
+  origin: string,
+  pathPrefix: string,
+  path: string,
+): string => {
+  const prefix = pathPrefix.replace(/^\/+|\/+$/g, "");
+  const suffix = path.replace(/^\/+/, "");
+  const relative = [prefix, suffix].filter(Boolean).join("/");
+  const base = origin.replace(/\/+$/, "");
+  return `${base}/${relative}`;
+};
+
+const resolveFetchUrl = (
+  origin: string | undefined,
+  pathPrefix: string,
+  path: string,
+): string => {
+  try {
+    new URL(path);
+    return path;
+  } catch {
+    if (typeof origin !== "string") {
+      throw new Error("Fetch parameters are not configured");
+    }
+
+    return joinFetchUrl(origin, pathPrefix, path);
+  }
+};
+
+/** Builds an absolute URL from the configured fetch origin and path prefix. */
+export const getFetchUrl = (path: string): string => {
+  return resolveFetchUrl(fetchOrigin, fetchPathPrefix, path);
+};
+
+// Identical GraphQL QUERIES that are in flight at the same moment share one
+// request. Several independent subscribers commonly derive the same
+// dataset-level aggregation from one view change, and each duplicate costs a
+// full server resolve. Only reads are shared: a mutation is never coalesced,
+// and the entry is dropped the moment the request settles, so nothing is
+// cached across gestures.
+const inFlightQueries = new Map<string, Promise<unknown>>();
+
+const graphqlQueryKey = (
+  method: string,
+  path: string,
+  body: unknown,
+): string | null => {
+  if (method.toUpperCase() !== "POST" || !body || typeof body !== "object") {
+    return null;
+  }
+
+  const query = (body as { query?: unknown }).query;
+  if (
+    typeof query !== "string" ||
+    !/^\s*query\s+aggregationsQuery\b/.test(query)
+  ) {
+    return null;
+  }
+
+  return `${path}:${JSON.stringify(body)}`;
+};
+
+export const setFetchFunction = (
+  origin: string,
+  defaultHeaders: HeadersInit = {},
+  pathPrefix = "",
+) => {
+  setFetchParameters(origin, defaultHeaders, pathPrefix);
+
+  const fetchFunctionExtended: FetchFunctionExtended = async (
+    method,
+    path,
+    body = null,
+    result = "json",
+    retries = 2,
+    retryCodes = [502, 503, 504],
+    errorHandler,
+    headers,
+    signal,
+    onProgress,
+    browserCache,
+  ) => {
+    const controller = new AbortController();
+    const url = resolveFetchUrl(origin, fetchPathPrefix, path);
+
+    // set content type only if body is present, otherwise it can cause Bad Request
+    // errors for endpoints that don't expect a body
+    headers = mergeHeaders(
+      body ? { "Content-Type": "application/json" } : {},
+      defaultHeaders,
+      headers,
+    );
+
+    const fetchCall = retries
+      ? fetchRetry(fetch, {
+          retries,
+          retryDelay: 500,
+          retryOn: (attempt, error, response) => {
+            if (
+              (error !== null || retryCodes.includes(response.status)) &&
+              attempt < retries
+            ) {
+              return true;
+            }
+            return false;
+          },
+        })
+      : fetch;
+
+    const response = await fetchCall(url, {
+      method: method,
+      cache: browserCache ?? "no-cache",
+      headers,
+      mode: "cors",
+      body: body ? JSON.stringify(body) : null,
+      signal: signal ?? controller.signal,
+      referrerPolicy: "same-origin",
+    });
+
+    if (!response.ok) {
+      if (errorHandler) {
+        await errorHandler(response);
+      }
+      // if custom error handler doesn't throw, use default error handling
+
+      if (response.status >= 400) {
+        const errorMetadata = {
+          code: response.status,
+          statusText: response.statusText,
+          bodyResponse: "",
+          route: response.url,
+          payload: body as object,
+          stack: null,
+          requestHeaders: headers,
+          responseHeaders: response.headers,
+          message: "",
+        };
+        let ErrorClass = NetworkError;
+
+        try {
+          const error = await response.json();
+          errorMetadata.bodyResponse = error;
+          if (error.stack) errorMetadata.stack = error?.stack;
+          errorMetadata.message = error?.message;
+          if (error?.stack) {
+            console.error(error.stack);
+          }
+          ErrorClass = ServerError;
+        } catch {
+          // if response body is not JSON
+          try {
+            errorMetadata.bodyResponse = await response.text();
+          } catch {
+            // skip response body if it cannot be read as text
+          }
+          errorMetadata.message = response.statusText;
+        }
+
+        throw new ErrorClass(errorMetadata, errorMetadata.message);
+      }
+    }
+
+    if (result === "json-stream") {
+      return {
+        response: new JSONStreamParser(response, controller),
+        headers: response.headers,
+      };
+    }
+
+    if (result === "response") {
+      return {
+        response,
+        headers: response.headers,
+      };
+    }
+
+    if (result === "arrayBuffer" && onProgress) {
+      return {
+        response: asFetchResult(
+          await readResponseArrayBuffer(response, onProgress),
+        ),
+        headers: response.headers,
+      };
+    }
+
+    return {
+      response: await response[result](),
+      headers: response.headers,
+    };
+  };
+
+  fetchFunctionExtendedSingleton = fetchFunctionExtended;
+
+  // convenience method which omits response headers
+  fetchFunctionSingleton = async <A, R>(
+    method: string,
+    path: string,
+    body: A = null,
+    result: FetchResultType = "json",
+    retries: number = 2,
+    retryCodes: number[] = [502, 503, 504],
+    errorHandler: (response: Response) => void | Promise<void>,
+    headers: Record<string, string>,
+  ) => {
+    const send = () =>
+      fetchFunctionExtended<A, R>(
+        method,
+        path,
+        body,
+        result,
+        retries,
+        retryCodes,
+        errorHandler,
+        headers,
+        undefined,
+        undefined,
+      ).then((res) => res.response);
+
+    const key = result === "json" ? graphqlQueryKey(method, path, body) : null;
+    if (key === null) {
+      return send();
+    }
+
+    const pending = inFlightQueries.get(key);
+    if (pending) {
+      return pending as Promise<R>;
+    }
+
+    const request = send().finally(() => inFlightQueries.delete(key));
+    inFlightQueries.set(key, request);
+    return request;
+  };
+};
+
+// FetchFunctionExtended predates result-type discrimination and lets callers
+// select the generic response type. Keep that boundary in one place for the
+// progress-aware array-buffer path instead of leaking an `any` assertion.
+function asFetchResult<Result>(value: unknown): Result {
+  return value as Result;
+}
+
+async function readResponseArrayBuffer(
+  response: Response,
+  onProgress: (loadedBytes: number) => void,
+): Promise<ArrayBuffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const buffer = await response.arrayBuffer();
+    onProgress(buffer.byteLength);
+    return buffer;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let loadedBytes = 0;
+  onProgress(loadedBytes);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loadedBytes += value.byteLength;
+    onProgress(loadedBytes);
+  }
+
+  const bytes = new Uint8Array(loadedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
+class JSONStreamParser {
+  constructor(
+    response,
+    private controller: AbortController,
+  ) {
+    this.reader = response.body.getReader();
+    this.decoder = new TextDecoder();
+    this.partialLine = "";
+  }
+
+  private reader;
+  private decoder: TextDecoder;
+  private partialLine: string;
+
+  abort() {
+    return this.controller.abort();
+  }
+
+  async parse(callback) {
+    while (true) {
+      const { done, value } = await this.reader.read();
+      if (done) {
+        // End of stream
+        break;
+      }
+
+      const chunk = this.decoder.decode(value);
+      for (const c of chunk) {
+        if (c === "\n") {
+          const json = JSON.parse(this.partialLine);
+          callback(json);
+          this.partialLine = "";
+        } else {
+          this.partialLine += c;
+        }
+      }
+    }
+    if (this.partialLine) {
+      // Process the last partial line, if any
+      const json = JSON.parse(this.partialLine);
+      callback(json);
+    }
+  }
+}
+
+const isWorker =
+  // @ts-ignore
+  typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+const hasWindow = typeof window !== "undefined" && !isWorker;
+
+export const getAPI = () => {
+  if (import.meta.env?.VITE_API) {
+    return import.meta.env.VITE_API;
+  }
+
+  if (window.FIFTYONE_SERVER_ADDRESS) {
+    return window.FIFTYONE_SERVER_ADDRESS;
+  }
+
+  return window.location.origin;
+};
+
+if (hasWindow) {
+  setFetchFunction(getAPI(), {}, getFetchPathPrefix());
+}
+
+class RetriableError extends Error {}
+class FatalError extends Error {}
+
+const polling =
+  hasWindow &&
+  typeof new URLSearchParams(window.location.search).get("polling") ===
+    "string";
+const MAX_REOPEN_ATTEMPTS = 10;
+let eventSourceFetchErrorCount = 0;
+
+export const getEventSource = (
+  path: string,
+  events: {
+    onmessage?: (event: EventSourceMessage) => void;
+    onopen?: () => void;
+    onclose?: () => void;
+    onerror?: (error: Error) => void;
+  },
+  signal: AbortSignal,
+  body = {},
+): void => {
+  if (polling) {
+    pollingEventSource(path, events, signal, body);
+  } else {
+    if (fetchPathPrefix) {
+      path = `${fetchPathPrefix}${path}`.replaceAll("//", "/");
+    }
+
+    fetchEventSource(`${getFetchOrigin()}${path}`, {
+      headers: { "Content-Type": "text/event-stream" },
+      method: "POST",
+      signal,
+      body: JSON.stringify(body),
+      referrerPolicy: "same-origin",
+      async onopen(response) {
+        if (response.ok) {
+          events.onopen && events.onopen();
+          eventSourceFetchErrorCount = 0;
+          return;
+        }
+
+        if (response.status !== 429) {
+          throw new FatalError();
+        }
+
+        throw new RetriableError();
+      },
+      onmessage(msg) {
+        if (msg.event === "FatalError") {
+          throw new FatalError(msg.data);
+        }
+        events.onmessage && events.onmessage(msg);
+      },
+      onclose() {
+        events.onclose && events.onclose();
+        throw new RetriableError();
+      },
+      onerror(err) {
+        if (
+          err instanceof TypeError &&
+          ["Failed to fetch", "network error"].includes(err.message)
+        ) {
+          events.onclose && events.onclose();
+          if (eventSourceFetchErrorCount <= MAX_REOPEN_ATTEMPTS) {
+            eventSourceFetchErrorCount++;
+            return;
+          }
+          throw err; // close event source
+        }
+
+        events.onerror && events.onerror(err);
+      },
+      fetch: async (input, init) => {
+        try {
+          const response = await fetch(input, init);
+          if (response.status >= 400) {
+            let err;
+            try {
+              err = await response.json();
+            } catch {
+              throw new Error(`${response.status} ${response.url}`);
+            }
+
+            throw new ServerError(
+              {
+                code: response.status,
+                bodyResponse: err,
+                route: response.url,
+                payload: {},
+                requestHeaders: init?.headers ?? {},
+                responseHeaders: response.headers,
+                statusText: response.statusText,
+                stack: (err as unknown as { stack?: string }).stack,
+              },
+              (err as unknown as { message?: string }).message ??
+                `${response.status} ${response.url}`,
+            );
+          }
+
+          return response;
+        } catch (err) {
+          throw err;
+        }
+      },
+      openWhenHidden: true,
+    });
+  }
+};
+
+export const sendEvent = async (data: {}) => {
+  return await getFetchFunction()("POST", "event", data);
+};
+
+interface PollingEventResponse {
+  event: string;
+  data: {
+    [key: string]: any;
+  };
+}
+
+const pollingEventSource = (
+  path: string,
+  events: {
+    onmessage?: (event: EventSourceMessage) => void;
+    onopen?: () => void;
+    onclose?: () => void;
+    onerror?: (error: Error) => void;
+  },
+  signal: AbortSignal,
+  body = {},
+  opened = false,
+): void => {
+  if (signal.aborted) {
+    return;
+  }
+
+  getFetchFunction()("POST", path, { polling: true, ...body })
+    .then(({ events: data }: { events: PollingEventResponse[] }) => {
+      if (signal.aborted) {
+        return;
+      }
+
+      if (!opened) {
+        events.onopen && events.onopen();
+        opened = true;
+      }
+
+      data.forEach((e) => {
+        events.onmessage &&
+          events.onmessage({
+            id: null,
+            event: e.event,
+            data: JSON.stringify(e.data),
+          });
+      });
+
+      setTimeout(
+        () => pollingEventSource(path, events, signal, body, opened),
+        2000,
+      );
+    })
+    .catch((error) => {
+      if (
+        error instanceof TypeError &&
+        ["Failed to fetch", "network error"].includes(error.message)
+      ) {
+        events.onclose && events.onclose();
+        opened = false;
+      } else {
+        // todo: use onerror when appropriate? (colab network responses are unreliable)
+        events.onclose && events.onclose();
+      }
+
+      setTimeout(
+        () => pollingEventSource(path, events, signal, body, opened),
+        2000,
+      );
+    });
+};

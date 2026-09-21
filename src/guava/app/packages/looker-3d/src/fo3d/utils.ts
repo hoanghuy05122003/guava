@@ -1,0 +1,391 @@
+import type { ModalSample } from "@fiftyone/state";
+import { PathType, determinePathType } from "@fiftyone/utilities";
+import { folder } from "leva";
+import {
+  DoubleSide,
+  MeshBasicMaterial,
+  MeshDepthMaterial,
+  MeshLambertMaterial,
+  MeshPhongMaterial,
+  MeshStandardMaterial,
+  PointsMaterial,
+  Vector3,
+  type Vector3Tuple,
+} from "three";
+import * as paths from "../../../utilities/src/paths";
+import type {
+  FoMeshBasicMaterialProps,
+  FoMeshLambertMaterialProps,
+  FoMeshPhongMaterialProps,
+  FoScene,
+  FoSceneNode,
+} from "../hooks";
+import type { SavedCameraState } from "../types";
+
+export const getCameraPositionKey = (datasetName?: string) =>
+  `${datasetName ?? "fiftyone"}-fo3d-camera-position`;
+
+/**
+ * Retrieve camera state from local storage for given dataset, if available
+ */
+export const getSavedCameraState = (
+  datasetName?: string,
+): SavedCameraState | null => {
+  const raw = window?.localStorage.getItem(getCameraPositionKey(datasetName));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      Array.isArray(parsed.position) &&
+      parsed.position.length === 3 &&
+      Array.isArray(parsed.target) &&
+      parsed.target.length === 3
+    ) {
+      return parsed as SavedCameraState;
+    }
+  } catch {
+    // corrupt saved state falls through to null
+  }
+  return null;
+};
+
+/**
+ * Save camera state to local storage for given dataset
+ */
+export const saveCameraState = (
+  datasetName: string | undefined,
+  position: number[],
+  target: number[],
+) => {
+  window?.localStorage.setItem(
+    getCameraPositionKey(datasetName),
+    JSON.stringify({ position, target }),
+  );
+};
+
+export const getAssetUrlForSceneNode = (node: FoSceneNode): string => {
+  if (!node.asset) return null;
+
+  const assetUrlProperty = Object.keys(node.asset ?? []).find((key) =>
+    key.endsWith("Url"),
+  );
+
+  return node.asset[assetUrlProperty];
+};
+
+export const getLabelForSceneNode = (node: FoSceneNode): string => {
+  if (node.name?.length > 0) {
+    return node.name;
+  }
+
+  const assetUrl = getAssetUrlForSceneNode(node);
+
+  if (!assetUrl) {
+    return `unknown-${node.asset.constructor.name}`;
+  }
+
+  // return the filename without the extension
+  return assetUrl.split("/").pop().split(".")[0];
+};
+
+export const getNodeFromSceneByName = (scene: FoScene, name: string) => {
+  const visitNodeDfs = (node: FoSceneNode): FoSceneNode => {
+    if (node.name === name) {
+      return node;
+    }
+
+    if (node.children) {
+      for (const child of node.children) {
+        const result = visitNodeDfs(child);
+        if (result) return result;
+      }
+    }
+
+    return null;
+  };
+
+  for (const child of scene.children) {
+    const result = visitNodeDfs(child);
+    if (result) return result;
+  }
+
+  return null;
+};
+
+/**
+ * Builds the leva schema for the scene's per-node visibility toggles.
+ *
+ * `savedVisibility` lets a persisted choice win over the scene's authored
+ * `visible` flag, so hiding a point cloud survives a refresh. Only node names
+ * present in the saved map are overridden, so a map left over from a scene with
+ * a different graph degrades to the authored defaults instead of hiding things
+ * that no longer exist.
+ */
+export const getVisibilityMapFromFo3dParsed = (
+  foSceneGraph: FoScene,
+  savedVisibility?: Record<string, boolean> | null,
+): Record<string, boolean> => {
+  if (!foSceneGraph) return null;
+
+  const resolveVisible = (child: FoSceneNode) => {
+    const saved = savedVisibility?.[child.name];
+    return typeof saved === "boolean" ? saved : child.visible;
+  };
+
+  const getVisibilityMapForChild = (child: FoSceneNode, _isNested: boolean) => {
+    if (child.children?.length > 0) {
+      const folderName =
+        child.name.charAt(0).toUpperCase() + child.name.slice(1);
+
+      const childrenVisibilityMap = child.children.map((child) =>
+        getVisibilityMapForChild(child, true),
+      );
+
+      return {
+        [folderName]: folder({
+          [child.name]: {
+            value: resolveVisible(child),
+            label: child.name,
+          },
+          ...childrenVisibilityMap.reduce(
+            (acc, curr) => ({ ...acc, ...curr }),
+            {},
+          ),
+        }),
+      };
+    }
+
+    return {
+      [child.name]: resolveVisible(child),
+    };
+  };
+
+  return foSceneGraph.children
+    .map((child) => getVisibilityMapForChild(child, false))
+    .reduce((acc, curr) => ({ ...acc, ...curr }), {});
+};
+
+/**
+ * Flattens a scene's *authored* per-node visibility (ignoring any saved
+ * preference), keyed by node name.
+ *
+ * Used as the baseline a saved preference is diffed against: a node's
+ * visibility is only worth persisting once it diverges from what the scene
+ * itself authored.
+ */
+export const getAuthoredVisibilityMap = (
+  foSceneGraph: FoScene,
+): Record<string, boolean> => {
+  if (!foSceneGraph) return {};
+
+  const walk = (child: FoSceneNode): Record<string, boolean> => {
+    const own = { [child.name]: child.visible };
+
+    if (!child.children?.length) {
+      return own;
+    }
+
+    return child.children.reduce(
+      (acc, nested) => ({ ...acc, ...walk(nested) }),
+      own,
+    );
+  };
+
+  return foSceneGraph.children.reduce(
+    (acc, child) => ({ ...acc, ...walk(child) }),
+    {} as Record<string, boolean>,
+  );
+};
+
+export const getMediaPathForFo3dSample = (
+  sample: ModalSample,
+  mediaField: string,
+) => {
+  if (Array.isArray(sample.urls)) {
+    const mediaFieldObj = sample.urls.find((url) => url.field === mediaField);
+    return mediaFieldObj?.url ?? sample.urls[0]?.url ?? sample.sample.filepath;
+  }
+
+  return sample.urls?.[mediaField] ?? sample.sample.filepath;
+};
+
+export const getFo3dRoot = (fo3dPath: string) => {
+  // remove filename and the last slash to get the root
+  const root = fo3dPath.replace(/(\/[^/]*\.fo3d$|\\[^\\]*\.fo3d$)/, "/");
+
+  return root;
+};
+
+export const getResolvedUrlForFo3dAsset = (
+  assetUrl: string,
+  fo3dRoot: string,
+) => {
+  if (
+    assetUrl.startsWith("s3://") ||
+    assetUrl.startsWith("gcp://") ||
+    assetUrl.startsWith("http://") ||
+    assetUrl.startsWith("https://") ||
+    assetUrl.startsWith("/") ||
+    assetUrl.startsWith("data:")
+  ) {
+    return assetUrl;
+  }
+
+  return paths.joinPaths(fo3dRoot, assetUrl);
+};
+
+export const getThreeMaterialFromFo3dMaterial = (
+  foMtl: Record<string, number | string | boolean>,
+  avoidZFighting = true,
+) => {
+  const { _type, ...props } = foMtl;
+  props["transparent"] = (props.opacity as number) < 1;
+  props["side"] = DoubleSide;
+  props["depthWrite"] = !avoidZFighting;
+
+  if (foMtl._type === "MeshBasicMaterial") {
+    return new MeshBasicMaterial(props as FoMeshBasicMaterialProps);
+  } else if (foMtl._type === "MeshStandardMaterial") {
+    const { emissiveColor: standardEmissiveColor, ...standardProps } =
+      props as FoMeshLambertMaterialProps;
+    return new MeshStandardMaterial({
+      ...standardProps,
+      emissive: standardEmissiveColor,
+    });
+  } else if (foMtl._type === "MeshLambertMaterial") {
+    const { emissiveColor: lambertEmissiveColor, ...lambertProps } =
+      props as FoMeshLambertMaterialProps;
+    return new MeshLambertMaterial({
+      ...lambertProps,
+      emissive: lambertEmissiveColor,
+    });
+  } else if (foMtl._type === "MeshPhongMaterial") {
+    const {
+      emissiveColor: phongEmissiveColor,
+      specularColor: phoneSpecularColor,
+      ...phongProps
+    } = props as FoMeshPhongMaterialProps;
+    return new MeshPhongMaterial({
+      specular: phoneSpecularColor,
+      emissive: phongEmissiveColor,
+      ...phongProps,
+    });
+  } else if (foMtl._type === "MeshDepthMaterial") {
+    return new MeshDepthMaterial(props);
+  } else if (foMtl._type === "PointCloudMaterial") {
+    return new PointsMaterial(props);
+  } else {
+    throw new Error("Unknown material " + JSON.stringify(foMtl, null, 2));
+  }
+};
+
+export const getOrthonormalAxis = (vec: Vector3Tuple | Vector3) => {
+  if (!vec?.length) {
+    return null;
+  }
+
+  if (vec instanceof Vector3) {
+    vec = vec.toArray();
+  }
+
+  if (vec[0] === 1 && vec[1] === 0 && vec[2] === 0) {
+    return "X";
+  }
+
+  if (vec[0] === 0 && vec[1] === 1 && vec[2] === 0) {
+    return "Y";
+  }
+
+  if (vec[0] === 0 && vec[1] === 0 && vec[2] === 1) {
+    return "Z";
+  }
+
+  if (vec[0] === -1 && vec[1] === 0 && vec[2] === 0) {
+    return "-X";
+  }
+
+  if (vec[0] === 0 && vec[1] === -1 && vec[2] === 0) {
+    return "-Y";
+  }
+
+  if (vec[0] === 0 && vec[1] === 0 && vec[2] === -1) {
+    return "-Z";
+  }
+
+  return null;
+};
+
+export const ORTHONORMAL_AXIS_OPTIONS = [
+  "X",
+  "Y",
+  "Z",
+  "-X",
+  "-Y",
+  "-Z",
+] as const;
+
+export type OrthonormalAxis = (typeof ORTHONORMAL_AXIS_OPTIONS)[number];
+
+export const getUpVectorFromAxis = (
+  axis: string | null | undefined,
+): Vector3 | null => {
+  if (axis === "X") {
+    return new Vector3(1, 0, 0);
+  }
+
+  if (axis === "Y") {
+    return new Vector3(0, 1, 0);
+  }
+
+  if (axis === "Z") {
+    return new Vector3(0, 0, 1);
+  }
+
+  if (axis === "-X") {
+    return new Vector3(-1, 0, 0);
+  }
+
+  if (axis === "-Y") {
+    return new Vector3(0, -1, 0);
+  }
+
+  if (axis === "-Z") {
+    return new Vector3(0, 0, -1);
+  }
+
+  return null;
+};
+
+export const getBasePathForTextures = (
+  fo3dRoot: string,
+  primaryAssetUrl: string,
+) => {
+  const assetUrlDecoded = new URL(decodeURIComponent(primaryAssetUrl));
+  const assetUrlSearchParams = assetUrlDecoded.searchParams;
+
+  const fo3dRootPathType = determinePathType(fo3dRoot);
+
+  if (
+    fo3dRootPathType !== PathType.URL &&
+    assetUrlSearchParams.has("filepath")
+  ) {
+    const assetFilePath = assetUrlSearchParams.get("filepath");
+    const assetFilePathWithFilenameStripped = assetFilePath.replace(
+      /[^/]*$/,
+      "",
+    );
+
+    return `${assetUrlDecoded.origin}${assetUrlDecoded.pathname}?filepath=${assetFilePathWithFilenameStripped}`;
+  }
+
+  const assetPathname = assetUrlDecoded.pathname;
+  const assetPathnameWithFilenameStripped = assetPathname.replace(/[^/]*$/, "");
+
+  const fo3dOrigin = fo3dRoot.slice(
+    0,
+    fo3dRoot.lastIndexOf(assetPathnameWithFilenameStripped),
+  );
+
+  return `${fo3dOrigin}${assetPathnameWithFilenameStripped}`;
+};

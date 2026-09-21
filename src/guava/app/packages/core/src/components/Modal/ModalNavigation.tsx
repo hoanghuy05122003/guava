@@ -1,0 +1,196 @@
+import {
+  LookerArrowLeftIcon,
+  LookerArrowRightIcon,
+} from "@fiftyone/components";
+import { selectiveRenderingEventBus } from "@fiftyone/looker";
+import * as fos from "@fiftyone/state";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useRecoilValue, useRecoilValueLoadable } from "recoil";
+import styled from "styled-components";
+import useExit from "./Sidebar/Annotate/Edit/useExit";
+import useSave from "./Sidebar/Annotate/Edit/useSave";
+import { createDebouncedNavigator } from "./debouncedNavigator";
+import { useShowClassicSidebar } from "./hooks";
+import {
+  KnownCommands,
+  KnownContexts,
+  useKeyBindings,
+  useUndoRedo,
+} from "@fiftyone/commands";
+
+const Arrow = styled.span<{
+  $isRight?: boolean;
+  $sidebarWidth: number;
+  $isSidebarVisible: boolean;
+}>`
+  cursor: pointer;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  right: ${(props) =>
+    props.$isRight
+      ? props.$isSidebarVisible
+        ? `calc(0.75rem + ${props.$sidebarWidth}px)`
+        : "0.75rem"
+      : "initial"};
+  left: ${(props) => (props.$isRight ? "initial" : "0.75rem")};
+  z-index: 10000;
+  padding: 0.75rem;
+  top: 50%;
+  width: 3rem;
+  height: 3rem;
+  background-color: var(--fo-palette-background-button);
+  box-shadow: 0 1px 3px var(--fo-palette-custom-shadowDark);
+  border-radius: 3px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease-in-out;
+  transition: box-shadow 0.15s ease-in-out;
+  &:hover {
+    opacity: 1;
+    box-shadow: inherit;
+    transition: box-shadow 0.15s ease-in-out;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  &:active {
+    top: calc(50% + 2px);
+  }
+`;
+
+const ModalNavigation = ({ closePanels }: { closePanels: () => void }) => {
+  const showModalNavigationControls = useRecoilValue(
+    fos.showModalNavigationControls,
+  );
+  const clearUndo = useUndoRedo(KnownContexts.ModalAnnotate).clear;
+  const sidebarwidth = useRecoilValue(fos.sidebarWidth(true));
+  const isSidebarVisible = useShowClassicSidebar();
+
+  const countLoadable = useRecoilValueLoadable(
+    fos.count({ path: "", extended: true, modal: false }),
+  );
+  const count = useRef<number | null>(null);
+  if (countLoadable.state === "hasValue") {
+    count.current = countLoadable.contents;
+  }
+
+  const setModal = fos.useSetExpandedSample();
+  const modal = useRecoilValue(fos.modalSelector);
+
+  const modalRef = useRef(modal);
+
+  modalRef.current = modal;
+
+  // important: make sure all dependencies of the navigators are referentially stable,
+  // or else the debouncing mechanism won't work
+  const nextNavigator = useMemo(
+    () =>
+      createDebouncedNavigator({
+        isNavigationIllegalWhen: () => modalRef.current?.hasNext === false,
+        navigateFn: async (offset) => {
+          const navigation = fos.modalNavigation.get();
+          if (navigation) {
+            clearUndo();
+            return await navigation.next(offset).then((selector) => {
+              selectiveRenderingEventBus.removeAllListeners();
+              setModal(selector);
+            });
+          }
+        },
+        onNavigationStart: () => {
+          closePanels();
+        },
+        debounceTime: 150,
+      }),
+    [closePanels, setModal, clearUndo],
+  );
+
+  const previousNavigator = useMemo(
+    () =>
+      createDebouncedNavigator({
+        isNavigationIllegalWhen: () => modalRef.current?.hasPrevious === false,
+        navigateFn: async (offset) => {
+          const navigation = fos.modalNavigation.get();
+          if (navigation) {
+            clearUndo();
+            return await navigation.previous(offset).then((selector) => {
+              selectiveRenderingEventBus.removeAllListeners();
+              setModal(selector);
+            });
+          }
+        },
+        onNavigationStart: () => {
+          closePanels();
+        },
+        debounceTime: 150,
+      }),
+    [closePanels, setModal, clearUndo],
+  );
+
+  useEffect(() => {
+    return () => {
+      nextNavigator.cleanup();
+      previousNavigator.cleanup();
+    };
+  }, [nextNavigator, previousNavigator]);
+  const onExit = useExit();
+  const onSave = useSave();
+  const next = useCallback(async () => {
+    onSave();
+    onExit();
+    nextNavigator.navigate();
+  }, [nextNavigator, onExit, onSave]);
+
+  const previous = useCallback(async () => {
+    onSave();
+    onExit();
+    previousNavigator.navigate();
+  }, [previousNavigator, onSave, onExit]);
+
+  useKeyBindings(KnownContexts.Modal, [
+    {
+      commandId: KnownCommands.ModalPreviousSample,
+      sequence: "ArrowLeft",
+      handler: previous,
+      label: "Previous",
+      description: "Previous Sample",
+    },
+    {
+      commandId: KnownCommands.ModalNextSample,
+      sequence: "ArrowRight",
+      handler: next,
+      label: "Next",
+      description: "Next Sample",
+    },
+  ]);
+
+  if (!modal) {
+    return null;
+  }
+
+  return (
+    <>
+      {showModalNavigationControls && modal.hasPrevious && (
+        <Arrow
+          $isSidebarVisible={isSidebarVisible}
+          $sidebarWidth={sidebarwidth}
+          onClick={previous}
+        >
+          <LookerArrowLeftIcon data-cy="nav-left-button" />
+        </Arrow>
+      )}
+      {showModalNavigationControls && modal.hasNext && (
+        <Arrow
+          $isRight
+          $isSidebarVisible={isSidebarVisible}
+          $sidebarWidth={sidebarwidth}
+          onClick={next}
+        >
+          <LookerArrowRightIcon data-cy="nav-right-button" />
+        </Arrow>
+      )}
+    </>
+  );
+};
+
+export default ModalNavigation;

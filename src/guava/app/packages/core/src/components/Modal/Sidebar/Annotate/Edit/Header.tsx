@@ -1,0 +1,247 @@
+import { useAtomValue } from "jotai";
+import { useCallback, useRef, useState } from "react";
+import { Redo, Round, Undo } from "../Actions";
+
+import { DetectionOverlay } from "@fiftyone/lighter";
+import { West as Back } from "@mui/icons-material";
+import { Box, Menu, MenuItem } from "@mui/material";
+import {
+  Align,
+  Clickable,
+  Icon,
+  IconName,
+  Orientation,
+  Size,
+  Spacing,
+  Stack,
+  Text,
+} from "@voxel51/voodo";
+import { DETECTION } from "@fiftyone/utilities";
+import styled from "styled-components";
+import { ItemLeft, ItemRight } from "../Components";
+import { ICONS } from "../Icons";
+import { Row } from "./Components";
+
+// The voodo Divider's line renders too faint against the header; an explicit
+// rule in the theme divider colour keeps the status / action groups legible.
+const VerticalDivider = styled.div`
+  width: 1px;
+  height: 1.25rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  background: ${({ theme }) => theme.divider};
+`;
+
+import { labels } from "../useLabels";
+import * as fos from "@fiftyone/state";
+import { isGeneratedView } from "@fiftyone/state";
+import { useRecoilValue } from "recoil";
+import { useSchemaManagerModal } from "../SchemaManager/hooks";
+import { useAnnotationContext } from "./useAnnotationContext";
+
+import { KnownCommands, KnownContexts, useCommand } from "@fiftyone/commands";
+import useColor from "./useColor";
+import { useDeactivateAllModes } from "../useDeactivateAllModes";
+import { useSegmentationMode } from "./useSegmentationMode";
+import {
+  AnnotationSaveIndicator,
+  useAnnotationController,
+  useAnnotationEngine,
+} from "@fiftyone/annotation";
+
+const LabelHamburgerMenu = () => {
+  const [open, setOpen] = useState<boolean>(false);
+  const anchor = useRef<HTMLElement | null>(null);
+
+  const deleteCommand = useCommand(
+    KnownCommands.ModalDeleteAnnotation,
+    KnownContexts.ModalAnnotate,
+  );
+
+  // Permission and read-only state
+  const canEditLabels = useRecoilValue(fos.canEditLabels);
+  const { selected, setData, setEditingMask } = useAnnotationContext();
+  const engine = useAnnotationEngine();
+  const currentFieldIsReadOnly = selected?.isFieldReadOnly ?? false;
+  const { openSchemaManager } = useSchemaManagerModal();
+  const isGenerated = useRecoilValue(isGeneratedView);
+
+  // Mask state
+  const type = selected?.type ?? null;
+  const data = selected?.data;
+  const overlay = selected?.overlay;
+  const { isEditingMask } = useSegmentationMode();
+
+  // Read mask state from the engine-reconciled row (data truth) rather
+  // than the selection-time editing copy, which nothing refreshes on
+  // engine-originated changes (undo/redo). `mask`/`mask_path` are
+  // Detection-only fields; the union narrows them out — cast at the
+  // access site.
+  const rows = useAtomValue(labels);
+  const row = rows.find((l) => l.data._id === data?._id);
+  const maskFields = (row?.data ?? data) as {
+    mask?: unknown;
+    mask_path?: unknown;
+  } | null;
+  const isMaskDetection = !!(
+    maskFields?.mask ||
+    maskFields?.mask_path ||
+    isEditingMask
+  );
+  const isDetection = type === DETECTION;
+
+  const handleAddMask = useCallback(() => {
+    if (overlay instanceof DetectionOverlay) {
+      overlay.initMask();
+      setOpen(false);
+    }
+  }, [overlay]);
+
+  const handleRemoveMask = useCallback(() => {
+    // removal is a data operation: the engine write persists (and owns
+    // undo) whether or not the decoded overlay has mounted yet — the
+    // bridge discards an in-flight decode whose mask was removed. The
+    // overlay call is live-canvas cleanup only.
+    if (overlay instanceof DetectionOverlay) {
+      overlay.removeMask();
+    } else if (selected?.ref) {
+      // null, not undefined: the engine's partial merge drops undefined
+      // keys; null serializes into the delta and clears the field
+      engine.updateLabel(selected.ref, {
+        mask: null,
+        mask_path: null,
+      });
+      // the overlay path ends mask-edit mode via its commit event; the
+      // data path must end it explicitly
+      if (data?._id) {
+        setEditingMask(data._id, false);
+      }
+    }
+    setData({ mask: undefined, mask_path: undefined });
+    setOpen(false);
+  }, [data, engine, overlay, selected, setData, setEditingMask]);
+
+  const handleOpenSchemaManager = () => {
+    openSchemaManager();
+    setOpen(false);
+  };
+
+  const showEditSchema = canEditLabels.enabled && currentFieldIsReadOnly;
+  const showDelete = !isGenerated;
+  const showAddMask =
+    isDetection && !isMaskDetection && !currentFieldIsReadOnly; // shown for a fresh box
+  const showRemoveMask =
+    isDetection && isMaskDetection && !currentFieldIsReadOnly;
+  const hasMenuItems =
+    showDelete || showEditSchema || showAddMask || showRemoveMask;
+
+  if (!hasMenuItems) {
+    return null;
+  }
+
+  return (
+    <>
+      <Clickable onClick={() => setOpen(true)}>
+        <Box ref={anchor} sx={{ p: 0.5 }} data-cy="label-menu-trigger">
+          <Icon name={IconName.MoreVertical} size={Size.Md} />
+        </Box>
+      </Clickable>
+
+      <Menu
+        anchorEl={anchor.current}
+        open={open}
+        onClose={() => setOpen(false)}
+        sx={{ zIndex: 9999 }}
+      >
+        {showAddMask && (
+          <MenuItem onClick={handleAddMask} data-cy="label-menu-add-mask">
+            Add mask
+          </MenuItem>
+        )}
+        {showRemoveMask && (
+          <MenuItem onClick={handleRemoveMask} data-cy="label-menu-remove-mask">
+            Remove mask
+          </MenuItem>
+        )}
+        {showDelete && (
+          <MenuItem
+            onClick={deleteCommand.callback}
+            data-cy="label-menu-delete"
+          >
+            <Stack
+              orientation={Orientation.Row}
+              align={Align.Center}
+              spacing={Spacing.Sm}
+            >
+              <Icon name={IconName.Delete} size={Size.Md} />
+              <Text>{deleteCommand.descriptor.label}</Text>
+            </Stack>
+          </MenuItem>
+        )}
+        {showEditSchema && (
+          <MenuItem onClick={handleOpenSchemaManager}>
+            Edit field schema
+          </MenuItem>
+        )}
+      </Menu>
+    </>
+  );
+};
+
+const Header = () => {
+  const annotationContext = useAnnotationContext();
+  const { selected } = annotationContext;
+  const type = selected?.type ?? null;
+  const Icon = ICONS[type?.toLowerCase() ?? ""];
+  const color = useColor(selected?.overlay ?? undefined);
+
+  const { exitAnnotationMode } = useAnnotationController();
+  const deactivateAll = useDeactivateAllModes();
+  const currentFieldIsReadOnly = selected?.isFieldReadOnly ?? false;
+
+  // In patches view with single label, clicking back should go to explore mode
+  const isPatches = useRecoilValue(fos.isPatchesView);
+  const labelCount = useAtomValue(labels).length;
+  const shouldExitToExplore = isPatches && labelCount === 1;
+
+  // Back mirrors the toolbar's Select tool: close the open edit AND leave
+  // every creation mode (2D + 3D), so the toolbar lands on Select no matter
+  // which mode opened the form. Each deactivator finalizes its own edit
+  // (exit interactive mode + `useExit`), so nothing else needs to run here.
+  // Deactivating only detection mode, as this did before, left segmentation
+  // and polyline armed after backing out of their edits.
+  const handleExit = useCallback(() => {
+    if (shouldExitToExplore) {
+      exitAnnotationMode();
+    }
+    deactivateAll();
+  }, [shouldExitToExplore, exitAnnotationMode, deactivateAll]);
+
+  return (
+    <Row>
+      <ItemLeft style={{ columnGap: "0.5rem" }}>
+        <Round onClick={handleExit} data-cy="annotate-edit-back">
+          <Back />
+        </Round>
+        {Icon && <Icon fill={color} />}
+        <div style={{ marginRight: "0.75rem" }}>Edit {type}</div>
+      </ItemLeft>
+      {currentFieldIsReadOnly && <span>Read-only</span>}
+      <ItemRight>
+        <Stack
+          orientation={Orientation.Row}
+          align={Align.Center}
+          spacing={Spacing.Xs}
+        >
+          <AnnotationSaveIndicator />
+          <VerticalDivider />
+          <Undo />
+          <Redo />
+          {annotationContext.selected?.label != null && <LabelHamburgerMenu />}
+        </Stack>
+      </ItemRight>
+    </Row>
+  );
+};
+
+export default Header;

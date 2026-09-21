@@ -1,0 +1,429 @@
+/**
+ * Copyright 2017-2026, Voxel51, Inc.
+ */
+
+import { type EventDispatcher, getEventBus } from "@fiftyone/events";
+import { CONTAINS } from "../core/containment";
+import type { LighterEventGroup } from "../events";
+import type {
+  InteractionHandler,
+  OverlayEvent,
+} from "../interaction/InteractionManager";
+import type { Renderer2D } from "../renderer/Renderer2D";
+import type { ResourceLoader } from "../resource/ResourceLoader";
+import type {
+  CoordinateSystem,
+  DrawStyle,
+  Point,
+  RawLookerLabel,
+  Rect,
+  RenderMeta,
+} from "../types";
+
+/**
+ * Base abstract class for all overlays.
+ */
+export abstract class BaseOverlay<
+  Label extends RawLookerLabel = RawLookerLabel,
+> implements InteractionHandler {
+  readonly id: string;
+  readonly cursor?: string;
+
+  /**
+   * Whether this overlay represents real annotation data that should be
+   * saved. Set to `false` for UI scaffolding (e.g. the point-selection
+   * keypoint overlay) that lives in the scene but must not be picked up by
+   * persistence. Consumers walking `scene.getAllOverlays()` for save deltas
+   * should skip overlays where this is `false`.
+   */
+  public isPersistent = true;
+
+  protected isHoveredState = false;
+
+  /** Whether the overlay needs to be re-rendered. The render loop will check this and re-render the overlay if it is dirty.
+   *
+   * See also `markDirty` and `markClean`.
+   */
+  protected isDirty = false;
+
+  protected coordinateSystem?: CoordinateSystem;
+  protected renderer?: Renderer2D;
+  protected resourceLoader?: ResourceLoader;
+  protected currentStyle?: DrawStyle;
+
+  private _eventChannel?: string;
+  private _eventBus?: EventDispatcher<LighterEventGroup>;
+
+  constructor(id: string, field: string, label: Label) {
+    this.id = id;
+    this._field = field;
+    this._label = label;
+    this.cursor = "default";
+  }
+
+  private _field: string;
+  private _label: Label;
+
+  /**
+   * Gets the event bus, initializing it lazily with the eventChannel if available.
+   */
+  protected get eventBus(): EventDispatcher<LighterEventGroup> {
+    if (!this._eventBus) {
+      this._eventBus = getEventBus<LighterEventGroup>(this._eventChannel);
+    }
+    return this._eventBus;
+  }
+
+  public get field(): string {
+    return this._field;
+  }
+  public set field(value: string) {
+    this._field = value;
+    this.markDirty();
+  }
+  public get label(): Label {
+    return this._label;
+  }
+  public set label(value: Label) {
+    this._label = value;
+    this.markDirty();
+  }
+
+  static validBounds(bounds: Rect | undefined): boolean {
+    if (!bounds) return false;
+
+    return ["x", "y", "width", "height"].every(
+      (prop) => !Number.isNaN(bounds[prop]),
+    );
+  }
+
+  /**
+   * Sets the coordinate system for this overlay.
+   * @param coordinateSystem - The coordinate system to use.
+   */
+  setCoordinateSystem(coordinateSystem: CoordinateSystem): void {
+    this.coordinateSystem = coordinateSystem;
+  }
+
+  /**
+   * Sets the renderer for this overlay.
+   * @param renderer - The renderer to use.
+   */
+  setRenderer(renderer: Renderer2D): void {
+    this.renderer = renderer;
+  }
+
+  /**
+   * Sets the resource loader for this overlay.
+   * @param loader - The resource loader to use.
+   */
+  setResourceLoader(loader: ResourceLoader): void {
+    this.resourceLoader = loader;
+  }
+
+  /**
+   * Sets the event channel for this overlay.
+   * @param eventChannel - The value to use for the event bus channel.
+   */
+  setEventChannel(eventChannel: string | undefined): void {
+    this._eventChannel = eventChannel;
+    // Reset eventBus so it gets reinitialized with the new eventChannel
+    this._eventBus = undefined;
+  }
+
+  /**
+   * Renders the overlay using the provided renderer and style.
+   * @param renderer - The renderer to use for drawing.
+   * @param style - The drawing style to apply.
+   * @param meta - Rendering metadata containing canonical media bounds and overlay index.
+   */
+  render(
+    renderer: Renderer2D,
+    style: DrawStyle | null,
+    meta: RenderMeta,
+  ): void {
+    // Store the current style for use in other methods
+    this.currentStyle = style || undefined;
+
+    // Open a rebuild pass around the paint so `renderImpl` can redraw
+    // declaratively — list your draws, top to bottom — while the renderer
+    // reuses the display objects the last pass left behind and discards
+    // whatever this one did not reach. Wrapping here rather than inside each
+    // `renderImpl` is what makes the early returns (`if (!style) return`)
+    // safe: the pass still closes.
+    //
+    // A pass opens and closes within ONE `render` call, which is why
+    // `renderImpl` is synchronous. The cursor is per CONTAINER, not per call,
+    // so an async `renderImpl` that awaited between draws could have a
+    // re-render reset its cursor to 0 mid-list and then delete it out from
+    // under the newer pass. `finally` covers the other half: a throwing
+    // `renderImpl` is caught upstream by `executeOverlayRender`, and leaving
+    // the pass open would strand the cursor and every slot past it.
+    renderer.beginRebuild(this.containerId);
+
+    try {
+      this.renderImpl(renderer, meta);
+    } finally {
+      renderer.endRebuild(this.containerId);
+    }
+  }
+
+  /**
+   * Abstract method for subclasses to implement their specific rendering logic.
+   * @param renderer - The renderer to use for drawing.
+   * @param meta - Rendering metadata containing canonical media bounds and overlay index.
+   */
+  protected abstract renderImpl(renderer: Renderer2D, meta: RenderMeta): void;
+
+  /**
+   * Gets the current draw style used for this overlay.
+   * @returns The current draw style, or undefined if not yet rendered.
+   */
+  protected getCurrentStyle(): DrawStyle | undefined {
+    return this.currentStyle;
+  }
+
+  /**
+   * Marks the overlay as dirty, indicating it needs to be re-rendered.
+   */
+  markDirty(): void {
+    this.isDirty = true;
+  }
+
+  /**
+   * Marks the overlay as clean, indicating it doesn't need to be re-rendered.
+   */
+  markClean(): void {
+    this.isDirty = false;
+  }
+
+  /**
+   * Checks if the overlay is dirty and needs to be re-rendered.
+   * @returns True if the overlay is dirty.
+   */
+  getIsDirty(): boolean {
+    return this.isDirty;
+  }
+
+  /**
+   * Gets the overlay type identifier.
+   * Used for type-specific behavior.
+   * @returns The overlay type identifier.
+   */
+  getOverlayType(): string {
+    // Default to class name - can be overridden by subclasses
+    return this.constructor.name;
+  }
+
+  isHovered(): boolean {
+    return this.isHoveredState;
+  }
+
+  /**
+   * Gets the container ID for this overlay.
+   * @returns The container ID.
+   */
+  get containerId(): string {
+    return this.id;
+  }
+
+  /**
+   * Emits an overlay-loaded event.
+   */
+  protected emitLoaded(): void {
+    this.eventBus.dispatch("lighter:overlay-loaded", { id: this.id });
+  }
+
+  /**
+   * Emits an overlay-error event.
+   * @param error - The error that occurred.
+   */
+  protected emitError(error: Error): void {
+    this.eventBus.dispatch("lighter:overlay-error", { id: this.id, error });
+  }
+
+  /**
+   * Generates a unique ID for overlays.
+   * @param prefix - Optional prefix for the ID.
+   * @returns A unique ID string.
+   */
+  protected generateId(prefix = "overlay"): string {
+    return `${prefix}_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+  }
+
+  /**
+   * Cleanup method to be called when the overlay is destroyed.
+   * Override this method in subclasses to perform specific cleanup.
+   */
+  destroy(): void {
+    this.renderer?.dispose(this.containerId);
+    this._eventBus = undefined;
+    this._eventChannel = undefined;
+  }
+
+  // InteractionHandler interface implementation
+
+  /**
+   * Check if a point is within this overlay's bounds.
+   * Default implementation uses renderer hit-testing.
+   * @param point - The point to test.
+   * @returns True if the point is within the overlay.
+   */
+  containsPoint(point: Point): boolean {
+    if (!this.renderer) return false;
+    return this.renderer.hitTest(point, this.containerId);
+  }
+
+  /**
+   * Gets the containment level for ordering purposes.
+   * @param point - The point to test.
+   * @returns The containment level (NONE = 0, CONTENT = 1, BORDER = 2).
+   */
+  getContainmentLevel(_point: Point): CONTAINS {
+    return CONTAINS.NONE;
+  }
+
+  /**
+   * Gets the distance from this overlay to a mouse point.
+   * @param point - The mouse point.
+   * @returns The distance to the point.
+   */
+  getMouseDistance(point: Point): number {
+    // Default implementation - subclasses should override for more accurate distance calculation
+    if (!this.renderer) return Number.POSITIVE_INFINITY;
+
+    const bounds = this.renderer.getBounds(this.containerId);
+    if (!bounds) return Number.POSITIVE_INFINITY;
+
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+
+    return Math.sqrt((point.x - centerX) ** 2 + (point.y - centerY) ** 2);
+  }
+
+  /**
+   * Forces the overlay to be in hovered state.
+   */
+  forceHoverEnter(): void {
+    this.isHoveredState = true;
+    this.markDirty();
+  }
+
+  /**
+   * Forces the overlay to be in unhovered state.
+   */
+  forceHoverLeave(): void {
+    this.isHoveredState = false;
+    this.markDirty();
+  }
+
+  /**
+   * Handle hover enter event.
+   * Override in subclasses to implement custom behavior.
+   * @param point - The point where the event occurred.
+   * @param event - The original pointer event.
+   * @returns True if the event was handled.
+   */
+  onHoverEnter(_point: Point | null, _event: PointerEvent | null): boolean {
+    this.isHoveredState = true;
+    this.markDirty();
+    return true;
+  }
+
+  /**
+   * Handle hover leave event.
+   * Override in subclasses to implement custom behavior.
+   * @param point - The point where the event occurred.
+   * @param event - The original pointer event.
+   * @returns True if the event was handled.
+   */
+  onHoverLeave?(_point?: Point | null, _event?: PointerEvent | null): boolean {
+    this.isHoveredState = false;
+    this.markDirty();
+    return true;
+  }
+
+  /**
+   * Handle hover move event.
+   * Override in subclasses to implement custom behavior.
+   * @param point - The point where the event occurred.
+   * @param event - The original pointer event.
+   * @returns True if the event was handled.
+   */
+  onHoverMove(_point?: Point | null, _event?: PointerEvent | null): boolean {
+    return true;
+  }
+
+  /**
+   * Handle pointer-down event.
+   * Override in subclasses to implement drag, resize, or painting behavior.
+   * @param params - The overlay event containing pointer and tool state.
+   * @returns True if the event was handled.
+   */
+  onPointerDown?(params: OverlayEvent): boolean;
+
+  /**
+   * Handle pointer-move event while a gesture is active.
+   * Override in subclasses to implement drag, resize, or painting behavior.
+   * @param params - The overlay event containing pointer and tool state.
+   * @returns True if the event was handled.
+   */
+  onMove?(params: OverlayEvent): boolean;
+
+  /**
+   * Handle pointer-up event.
+   * Override in subclasses to finalize drag, resize, or painting behavior.
+   * @param params - The overlay event containing pointer and tool state.
+   * @returns True if the event was handled.
+   */
+  onPointerUp?(params: OverlayEvent): boolean;
+
+  /**
+   * Handle click event.
+   * Override in subclasses to implement custom behavior.
+   * @param point - The point where the event occurred.
+   * @param event - The original pointer event.
+   * @returns True if the event was handled.
+   */
+  onClick?(point: Point, event: PointerEvent): boolean;
+
+  /**
+   * Handle double-click event.
+   * Override in subclasses to implement custom behavior.
+   * @param point - The point where the event occurred.
+   * @param event - The original pointer event.
+   * @returns True if the event was handled.
+   */
+  onDoubleClick?(point: Point, event: PointerEvent): boolean;
+
+  /**
+   * Updates the field for this overlay.
+   * @param field - The new field.
+   */
+  updateField(field: string) {
+    this.field = field;
+  }
+
+  /**
+   * Apply label state without emitting — the silent half of
+   * {@link updateLabel}. Used by Sample→overlay reconciliation so an applied
+   * change does not re-enter the overlay→Sample write path. Subclasses override
+   * to apply their derived state, but must NOT dispatch
+   * `lighter:overlay-commit-requested` here (that belongs in {@link updateLabel}).
+   * @param label - The new label.
+   */
+  applyLabel(label: Label) {
+    this.label = label;
+  }
+
+  /**
+   * Apply a label as a user edit: {@link applyLabel} plus the
+   * `lighter:overlay-commit-requested` dispatch that drives downstream sync.
+   * @param label - The new label.
+   */
+  updateLabel(label: Label) {
+    this.applyLabel(label);
+  }
+}

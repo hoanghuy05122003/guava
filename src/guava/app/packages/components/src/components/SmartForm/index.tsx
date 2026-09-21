@@ -1,0 +1,8 @@
+import RJSF from "./RJSF";
+
+import { SmartFormProps } from "./types";
+
+export default function SmartForm(props: SmartFormProps) {
+  // potentially support RJSF alternatives here
+  return <RJSF {...props} />;
+}

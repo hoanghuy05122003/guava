@@ -1,0 +1,1033 @@
+"""
+Dataset samples.
+
+| Copyright 2017-2026, Voxel51, Inc.
+| `voxel51.com <https://voxel51.com/>`_
+|
+"""
+
+import logging
+from copy import deepcopy
+import os
+
+from bson import ObjectId
+
+from fiftyone.core.document import Document, DocumentView
+import fiftyone.core.frame as fofr
+import fiftyone.core.frame_utils as fofu
+import fiftyone.core.labels as fol
+import fiftyone.core.media as fomm
+import fiftyone.core.metadata as fom
+import fiftyone.core.odm as foo
+from fiftyone.core.singletons import SampleSingleton
+import fiftyone.core.utils as fou
+
+fmm = fou.lazy_import("fiftyone.multimodal.media_reference.field_model")
+import fiftyone.core.media_reference as fmd
+
+#: The stored field, which the hydrating property of the same name shadows
+_REFERENCE_FIELDS = ("media_reference",)
+
+
+logger = logging.getLogger(__name__)
+
+
+def get_default_sample_fields(include_private=False, use_db_fields=False):
+    """Returns the default fields present on all samples.
+
+    Args:
+        include_private (False): whether to include fields starting with ``_``
+        use_db_fields (False): whether to return database fields rather than
+            user-facing fields, when applicable
+
+    Returns:
+        a tuple of field names
+    """
+    return foo.get_default_fields(
+        foo.DatasetSampleDocument,
+        include_private=include_private,
+        use_db_fields=use_db_fields,
+    )
+
+
+class _SampleMixin(object):
+    def __getattr__(self, name):
+        if name == "frames" and self.media_type == fomm.VIDEO:
+            return self._frames
+
+        return super().__getattr__(name)
+
+    def __setattr__(self, name, value):
+        if name == "frames" and self.media_type == fomm.VIDEO:
+            self.set_field("frames", value)
+            return
+
+        if name in _REFERENCE_FIELDS and hasattr(self, "_doc"):
+            self._set_media_reference(value)
+            return
+
+        self._secure_media(name, value)
+        super().__setattr__(name, value)
+
+    def __getitem__(self, field_name):
+        if self.media_type == fomm.VIDEO and fofu.is_frame_number(field_name):
+            return self.frames[field_name]
+
+        return super().__getitem__(field_name)
+
+    def __setitem__(self, field_name, value):
+        if self.media_type == fomm.VIDEO and fofu.is_frame_number(field_name):
+            self.frames[field_name] = value
+            return
+
+        if field_name in _REFERENCE_FIELDS:
+            self._set_media_reference(value)
+            return
+
+        self._secure_media(field_name, value)
+        super().__setitem__(field_name, value)
+
+    def __iter__(self):
+        if self.media_type == fomm.VIDEO:
+            return iter(self._frames)
+
+        raise ValueError("Image samples are not iterable")
+
+    @property
+    def dataset_id(self):
+        return self._doc._dataset_id
+
+    @property
+    def _dataset_id(self):
+        _id = self._doc._dataset_id
+        return ObjectId(_id) if _id is not None else None
+
+    @property
+    def filename(self):
+        """The basename or logical display name of the sample's media."""
+        reference = self.media_reference
+        if reference is not None:
+            return reference.display_name
+
+        return os.path.basename(self.filepath)
+
+    @property
+    def media_reference(self):
+        """The sample's
+        :class:`fiftyone.core.media_reference.MediaReference`, or None for a filepath-backed sample.
+
+        The reference says which media source the sample's media comes from
+        and where in it the sample is; the source itself is recorded once on
+        the dataset.
+        """
+        return self._doc.get_field("media_reference")
+
+    @media_reference.setter
+    def media_reference(self, reference):
+        self._set_media_reference(reference)
+
+    @property
+    def media_type(self):
+        """The media type of the sample."""
+        return self._media_type
+
+    def get_media_key(self):
+        """Returns the sample's active logical media key.
+
+        Reference-backed samples return their reference's key. All other
+        samples return their filepath.
+        """
+        reference = self._doc.get_field("media_reference")
+        if reference is not None:
+            return reference.key
+
+        return self._doc.get_field("filepath")
+
+    def get_field(self, field_name):
+        if field_name == "frames" and self.media_type == fomm.VIDEO:
+            return self._frames
+
+        return super().get_field(field_name)
+
+    def set_field(
+        self,
+        field_name,
+        value,
+        create=True,
+        validate=True,
+        dynamic=False,
+    ):
+        root_field = field_name.split(".", 1)[0]
+        if root_field in _REFERENCE_FIELDS and field_name != root_field:
+            raise AttributeError(
+                "Media references only support whole-value reassignment"
+            )
+
+        if field_name in _REFERENCE_FIELDS:
+            self._set_media_reference(value)
+            return
+
+        self._secure_media(field_name, value)
+
+        if field_name == "frames" and self.media_type == fomm.VIDEO:
+            self.frames.clear()
+            self.frames.update(
+                value,
+                expand_schema=create,
+                validate=validate,
+                dynamic=dynamic,
+            )
+
+            return
+
+        super().set_field(
+            field_name,
+            value,
+            create=create,
+            validate=validate,
+            dynamic=dynamic,
+        )
+
+    def clear_field(self, field_name):
+        root_field = field_name.split(".", 1)[0]
+        if (
+            root_field in _REFERENCE_FIELDS
+            and field_name != root_field
+            and self._doc.get_field("media_reference") is not None
+        ):
+            raise AttributeError(
+                "Media references only support whole-value reassignment"
+            )
+
+        if root_field == "filepath" or root_field in _REFERENCE_FIELDS:
+            raise ValueError(
+                "A sample's media source cannot be cleared; create a new "
+                "sample instead"
+            )
+
+        if field_name == "frames" and self.media_type == fomm.VIDEO:
+            self.frames.clear()
+            return
+
+        super().clear_field(field_name)
+
+    def compute_metadata(self, overwrite=False, skip_failures=False):
+        """Populates the ``metadata`` field of the sample.
+
+        Args:
+            overwrite (False): whether to overwrite existing metadata
+            skip_failures (False): whether to gracefully continue without
+                raising an error if metadata cannot be computed
+        """
+        if self._doc.get_field("media_reference") is not None:
+            raise fmm.UnsupportedMediaReferenceOperation(
+                "Generic file metadata is unavailable for media-reference-"
+                "backed samples; use the registered episode resolver"
+            )
+
+        fom.compute_sample_metadata(
+            self, overwrite=overwrite, skip_failures=skip_failures
+        )
+
+    def add_labels(
+        self,
+        labels,
+        label_field=None,
+        confidence_thresh=None,
+        classes=None,
+        expand_schema=True,
+        validate=True,
+        dynamic=False,
+    ):
+        """Adds the given labels to the sample.
+
+        The provided ``labels`` can be any of the following:
+
+        -   A :class:`fiftyone.core.labels.Label` instance, in which case the
+            labels are directly saved in the specified ``label_field``
+
+        -   A dict mapping keys to :class:`fiftyone.core.labels.Label`
+            instances. In this case, the labels are added as follows::
+
+                for key, value in labels.items():
+                    sample[label_key(key)] = value
+
+        -   A dict mapping frame numbers to :class:`fiftyone.core.labels.Label`
+            instances. In this case, the provided labels are interpreted as
+            frame-level labels that should be added as follows::
+
+                sample.frames.merge(
+                    {
+                        frame_number: {label_field: label}
+                        for frame_number, label in labels.items()
+                    }
+                )
+
+        -   A dict mapping frame numbers to dicts mapping keys to
+            :class:`fiftyone.core.labels.Label` instances. In this case, the
+            provided labels are interpreted as frame-level labels that should
+            be added as follows::
+
+                sample.frames.merge(
+                    {
+                        frame_number: {
+                            label_key(key): value
+                            for key, value in frame_dict.items()
+                        }
+                        for frame_number, frame_dict in labels.items()
+                    }
+                )
+
+        In the above, the ``label_key`` function maps label dict keys to field
+        names, and is defined from ``label_field`` as follows::
+
+            if isinstance(label_field, dict):
+                label_key = lambda k: label_field.get(k, k)
+            elif label_field is not None:
+                label_key = lambda k: label_field + "_" + k
+            else:
+                label_key = lambda k: k
+
+        Args:
+            labels: a :class:`fiftyone.core.labels.Label` or dict of labels per
+                the description above
+            label_field (None): the sample field, prefix, or dict defining in
+                which field(s) to save the labels
+            confidence_thresh (None): an optional confidence threshold to apply
+                to any applicable labels before saving them
+            classes (None): an optional iterable of classes to which to
+                restrict any applicable labels generated by the model
+            expand_schema (True): whether to dynamically add new fields
+                encountered to the dataset schema. If False, an error is raised
+                if any fields are not in the dataset schema
+            validate (True): whether to validate values for existing fields
+            dynamic (False): whether to declare dynamic attributes
+        """
+        if isinstance(label_field, dict):
+            label_key = lambda k: label_field.get(k, k)
+        elif label_field is not None:
+            label_key = lambda k: label_field + "_" + k
+        else:
+            label_key = lambda k: k
+
+        if confidence_thresh is not None:
+            labels = _apply_confidence_thresh(labels, confidence_thresh)
+
+        if classes is not None:
+            labels = _apply_classes(labels, classes)
+
+        if _is_frames_dict(labels):
+            if self.media_type != fomm.VIDEO:
+                raise ValueError(
+                    "Cannot add frame labels to non-video samples"
+                )
+
+            if isinstance(next(iter(labels.values())), dict):
+                # Multiple frame-level fields
+                self.frames.merge(
+                    {
+                        frame_number: {
+                            label_key(fname): flabel
+                            for fname, flabel in frame_dict.items()
+                        }
+                        for frame_number, frame_dict in labels.items()
+                    },
+                    expand_schema=expand_schema,
+                    validate=validate,
+                    dynamic=dynamic,
+                )
+            elif label_field is None:
+                raise ValueError(
+                    "A `label_field` must be provided in order to add labels "
+                    "to a single frame-level field"
+                )
+            else:
+                # Single frame-level field
+                self.frames.merge(
+                    {
+                        frame_number: {label_field: label}
+                        for frame_number, label in labels.items()
+                    },
+                    expand_schema=expand_schema,
+                    validate=validate,
+                    dynamic=dynamic,
+                )
+
+        elif isinstance(labels, dict):
+            # Multiple sample-level fields
+            self.update_fields(
+                {label_key(k): v for k, v in labels.items()},
+                expand_schema=expand_schema,
+                validate=validate,
+                dynamic=dynamic,
+            )
+        elif labels is not None:
+            if label_field is None:
+                raise ValueError(
+                    "A `label_field` must be provided in order to add labels "
+                    "to a single sample field"
+                )
+
+            # Single sample-level field
+            self.set_field(
+                label_field,
+                labels,
+                create=expand_schema,
+                validate=validate,
+                dynamic=dynamic,
+            )
+
+    def merge(
+        self,
+        sample,
+        fields=None,
+        omit_fields=None,
+        merge_lists=True,
+        merge_embedded_docs=False,
+        overwrite=True,
+        expand_schema=True,
+        validate=True,
+        dynamic=False,
+    ):
+        """Merges the fields of the given sample into this sample.
+
+        The behavior of this method is highly customizable. By default, all
+        top-level fields from the provided sample are merged in, overwriting
+        any existing values for those fields, with the exception of list fields
+        (e.g., ``tags``) and label list fields (e.g.,
+        :class:`fiftyone.core.labels.Detections` fields), in which case the
+        elements of the lists themselves are merged. In the case of label list
+        fields, labels with the same ``id`` in both samples are updated rather
+        than duplicated.
+
+        To avoid confusion between missing fields and fields whose value is
+        ``None``, ``None``-valued fields are always treated as missing while
+        merging.
+
+        This method can be configured in numerous ways, including:
+
+        -   Whether new fields can be added to the dataset schema
+        -   Whether list fields should be treated as ordinary fields and merged
+            as a whole rather than merging their elements
+        -   Whether to merge only specific fields, or all but certain fields
+        -   Mapping input sample fields to different field names of this sample
+
+        Args:
+            sample: a :class:`fiftyone.core.sample.Sample`
+            fields (None): an optional field or iterable of fields to which to
+                restrict the merge. May contain frame fields for video samples.
+                This can also be a dict mapping field names of the input sample
+                to field names of this sample
+            omit_fields (None): an optional field or iterable of fields to
+                exclude from the merge. May contain frame fields for video
+                samples
+            merge_lists (True): whether to merge the elements of list fields
+                (e.g., ``tags``) and label list fields (e.g.,
+                :class:`fiftyone.core.labels.Detections` fields) rather than
+                merging the entire top-level field like other field types.
+                For label lists fields, existing
+                :class:`fiftyone.core.label.Label` elements are either replaced
+                (when ``overwrite`` is True) or kept (when ``overwrite`` is
+                False) when their ``id`` matches a label from the provided
+                sample
+            merge_embedded_docs (False): whether to merge the attributes of
+                embedded documents (True) rather than merging the entire
+                top-level field (False)
+            overwrite (True): whether to overwrite (True) or skip (False)
+                existing fields and label elements
+            expand_schema (True): whether to dynamically add new fields
+                encountered to the dataset schema. If False, an error is raised
+                if any fields are not in the dataset schema
+            validate (True): whether to validate values for existing fields
+            dynamic (False): whether to declare dynamic embedded document
+                fields
+        """
+        if sample.media_type != self.media_type:
+            raise ValueError(
+                "Cannot merge sample with media type '%s' into sample with "
+                "media type '%s'" % (sample.media_type, self.media_type)
+            )
+
+        if self.media_type == fomm.VIDEO:
+            (
+                fields,
+                frame_fields,
+                omit_fields,
+                omit_frame_fields,
+            ) = self._parse_fields_video(
+                fields=fields, omit_fields=omit_fields
+            )
+
+        super().merge(
+            sample,
+            fields=fields,
+            omit_fields=omit_fields,
+            merge_lists=merge_lists,
+            merge_embedded_docs=merge_embedded_docs,
+            overwrite=overwrite,
+            expand_schema=expand_schema,
+            validate=validate,
+            dynamic=dynamic,
+        )
+
+        if self.media_type == fomm.VIDEO:
+            self.frames.merge(
+                sample.frames,
+                fields=frame_fields,
+                omit_fields=omit_frame_fields,
+                merge_lists=merge_lists,
+                merge_embedded_docs=merge_embedded_docs,
+                overwrite=overwrite,
+                expand_schema=expand_schema,
+                validate=validate,
+                dynamic=dynamic,
+            )
+
+    def copy(self, fields=None, omit_fields=None):
+        """Returns a deep copy of the sample that has not been added to the
+        database.
+
+        Args:
+            fields (None): an optional field or iterable of fields to which to
+                restrict the copy. This can also be a dict mapping existing
+                field names to new field names
+            omit_fields (None): an optional field or iterable of fields to
+                exclude from the copy
+
+        Returns:
+            a :class:`Sample`
+        """
+        if self.media_type == fomm.VIDEO:
+            (
+                fields,
+                frame_fields,
+                omit_fields,
+                omit_frame_fields,
+            ) = self._parse_fields_video(
+                fields=fields, omit_fields=omit_fields
+            )
+
+        if self._doc.get_field("media_reference") is not None:
+            # The reference is read-only, so the generic copy would drop it
+            parsed = self._parse_fields(fields=fields, omit_fields=omit_fields)
+            # a view copies into its document class; a sample into its own
+            document_cls = getattr(type(self), "_DOCUMENT_CLS", type(self))
+            sample = document_cls(
+                media_reference=deepcopy(self.media_reference),
+                **{
+                    v: deepcopy(self[k])
+                    for k, v in parsed.items()
+                    if k not in _REFERENCE_FIELDS
+                },
+            )
+        else:
+            sample = super().copy(fields=fields, omit_fields=omit_fields)
+
+        if self.media_type == fomm.VIDEO:
+            sample.frames.update(
+                {
+                    frame_number: frame.copy(
+                        fields=frame_fields, omit_fields=omit_frame_fields
+                    )
+                    for frame_number, frame in self.frames.items()
+                }
+            )
+
+        return sample
+
+    def to_dict(self, include_frames=False, include_private=False):
+        """Serializes the sample to a JSON dictionary.
+
+        Args:
+            include_frames (False): whether to include the frame labels for
+                video samples
+            include_private (False): whether to include private fields
+
+        Returns:
+            a JSON dict
+        """
+        d = super().to_dict(include_private=include_private)
+
+        if self.media_type == fomm.VIDEO:
+            if include_frames:
+                d["frames"] = self.frames._to_frames_dict(
+                    include_private=include_private
+                )
+            else:
+                d.pop("frames", None)
+
+        return d
+
+    def _secure_media(self, field_name, value):
+        root_field = field_name.split(".", 1)[0]
+        if root_field in _REFERENCE_FIELDS:
+            if field_name == root_field:
+                return
+
+            raise AttributeError(
+                "Media references only support whole-value reassignment"
+            )
+
+        if field_name != "filepath":
+            return
+
+        if self._doc.get_field("media_reference") is not None:
+            raise ValueError(
+                "Cannot assign a filepath to a reference-backed sample"
+            )
+
+        new_media_type = fomm.get_media_type(value)
+        if self.media_type != new_media_type:
+            raise fomm.MediaTypeError(
+                "A sample's 'filepath' can be changed, but its media type "
+                "cannot; current '%s', new '%s'"
+                % (self.media_type, new_media_type)
+            )
+
+    def _set_media_reference(self, reference):
+        current = self._doc.get_field("media_reference")
+        if current is None:
+            raise ValueError(
+                "Cannot convert a filepath-backed sample to a media reference "
+                "by assignment; create a new sample instead"
+            )
+
+        if not isinstance(reference, fmd.MediaReference):
+            raise TypeError("media_reference must be a MediaReference")
+
+        if self.in_dataset:
+            self._validate_attached_media_reference(reference)
+
+        if reference == current:
+            return
+
+        if self.in_dataset:
+            self._doc.media_reference = reference
+            self._doc.metadata = None
+        else:
+            self._doc._data["media_reference"] = reference
+            self._doc._data["metadata"] = None
+
+    def _validate_attached_media_reference(self, reference):
+        dataset = self._dataset
+        if reference.source_id not in fmm._media_sources_by_id(dataset):
+            raise ValueError(
+                "Dataset '%s' does not record media source '%s'. Add the "
+                "source with add_dir() rather than add_samples(), so the "
+                "dataset records where its bytes are"
+                % (dataset.name, reference.source_id)
+            )
+
+        if dataset.media_type == fomm.GROUP:
+            group_field = dataset.group_field
+            group = (
+                self._doc.get_field(group_field)
+                if group_field is not None
+                else None
+            )
+            slice_media_type = (
+                dataset.group_media_types.get(group.name)
+                if group is not None
+                else None
+            )
+            if slice_media_type != fomm.MULTIMODAL:
+                raise fomm.MediaTypeError(
+                    "A media reference is incompatible with group slice '%s'"
+                    % (group.name if group is not None else None)
+                )
+        elif dataset.media_type != fomm.MULTIMODAL:
+            raise fomm.MediaTypeError(
+                "A media reference does not match dataset media type '%s'"
+                % dataset.media_type
+            )
+
+    def _parse_fields_video(self, fields=None, omit_fields=None):
+        if fields is not None:
+            fields, frame_fields = fou.split_frame_fields(fields)
+        else:
+            frame_fields = None
+
+        if omit_fields is not None:
+            omit_fields, omit_frame_fields = fou.split_frame_fields(
+                omit_fields
+            )
+        else:
+            omit_frame_fields = None
+
+        return fields, frame_fields, omit_fields, omit_frame_fields
+
+
+class Sample(_SampleMixin, Document, metaclass=SampleSingleton):
+    """A sample in a :class:`fiftyone.core.dataset.Dataset`.
+
+    Samples store all information associated with a particular piece of data in
+    a dataset, including basic metadata about the data, one or more sets of
+    labels (ground truth, user-provided, or FiftyOne-generated), and additional
+    features associated with subsets of the data and/or label sets.
+
+    .. note::
+
+        :class:`Sample` instances that are **in datasets** are singletons,
+        i.e.,  ``dataset[sample_id]`` will always return the same
+        :class:`Sample` instance.
+
+    Args:
+        filepath (None): the path to the data on disk for a filepath-backed
+            sample. The path is converted to an absolute path (if necessary)
+            via :func:`fiftyone.core.storage.normalize_path`
+        media_reference (None): an immutable
+            :class:`fiftyone.core.media_reference.MediaReference` for a
+            reference-backed sample
+        tags (None): a list of tags for the sample
+        metadata (None): a :class:`fiftyone.core.metadata.Metadata` instance
+        **kwargs: additional fields to dynamically set on the sample
+    """
+
+    _NO_DATASET_DOC_CLS = foo.NoDatasetSampleDocument
+
+    def __init__(
+        self,
+        filepath=None,
+        tags=None,
+        metadata=None,
+        media_reference=None,
+        **kwargs,
+    ):
+        if media_reference is not None and not isinstance(
+            media_reference, fmd.MediaReference
+        ):
+            raise TypeError("media_reference must be a MediaReference")
+
+        if (filepath is None) == (media_reference is None):
+            raise TypeError(
+                "exactly one of filepath or media_reference is required"
+            )
+
+        super().__init__(
+            filepath=filepath,
+            tags=tags,
+            metadata=metadata,
+            media_reference=media_reference,
+            **kwargs,
+        )
+
+        if self.media_type == fomm.VIDEO:
+            self._frames = fofr.Frames(self)
+        else:
+            self._frames = None
+
+    def __repr__(self):
+        kwargs = {}
+        if self.media_type == fomm.VIDEO:
+            kwargs["frames"] = self._frames
+
+        return self._doc.fancy_repr(
+            class_name=self.__class__.__name__, **kwargs
+        )
+
+    def _reload_backing_doc(self):
+        if not self._in_db:
+            return
+
+        d = self._dataset._sample_collection.find_one({"_id": self._id})
+        if d:
+            # Disable reloading of backing docs to prevent infinite recursion
+            self._doc = self._dataset._sample_dict_to_doc(
+                d, _reload_backing_docs=False
+            )
+        else:
+            # Sample has an 'id' but not found during reload.
+            # This can occur if the sample was deleted externally
+            logger.warning(f"Sample with ID {self._id} has been deleted")
+
+    def reload(self, hard=False, include_frames=True):
+        """Reloads the sample from the database.
+
+        Args:
+            hard (False): whether to reload the sample's schema in addition to
+                its field values. This is necessary if new fields may have been
+                added to the dataset schema
+            include_frames (True): whether to reload any in-memory frames of
+                video samples
+        """
+        if self.media_type == fomm.VIDEO and include_frames:
+            self.frames.reload(hard=hard)
+
+        super().reload(hard=hard)
+
+    def save(self):
+        """Saves the sample to the database."""
+        super().save()
+
+    def _save(self, deferred=False):
+        if not self._in_db:
+            raise ValueError(
+                "Cannot save a sample that has not been added to a dataset"
+            )
+
+        if self.media_type == fomm.VIDEO:
+            _sample_ops, frame_ops = self.frames._save(deferred=deferred)
+        else:
+            _sample_ops, frame_ops = None, None
+
+        sample_ops = super()._save(deferred=deferred)
+
+        if _sample_ops:
+            sample_ops.extend(_sample_ops)
+
+        return sample_ops, frame_ops
+
+    @classmethod
+    def from_frame(cls, frame, filepath=None):
+        """Creates a sample from the given frame.
+
+        Args:
+            frame: a :class:`fiftyone.core.frame.Frame`
+            filepath (None): the path to the corresponding image frame on disk,
+                if not available
+
+        Returns:
+            a :class:`Sample`
+        """
+        kwargs = {k: v for k, v in frame.iter_fields()}
+        if filepath is not None:
+            kwargs["filepath"] = filepath
+
+        return cls(**kwargs)
+
+    @classmethod
+    def from_doc(cls, doc, dataset=None):
+        """Creates a sample backed by the given document.
+
+        Args:
+            doc: a :class:`fiftyone.core.odm.sample.DatasetSampleDocument` or
+                :class:`fiftyone.core.odm.sample.NoDatasetSampleDocument`
+            dataset (None): the :class:`fiftyone.core.dataset.Dataset` that
+                the sample belongs to
+
+        Returns:
+            a :class:`Sample`
+        """
+        sample = super().from_doc(doc, dataset=dataset)
+
+        if sample.media_type == fomm.VIDEO:
+            sample._frames = fofr.Frames(sample)
+
+        return sample
+
+    @classmethod
+    def from_dict(cls, d):
+        """Loads the sample from a JSON dictionary.
+
+        The returned sample will not belong to a dataset.
+
+        Returns:
+            a :class:`Sample`
+        """
+        d.pop("_dataset_id", None)
+
+        media_type = d.get("_media_type", None)
+        if media_type is None and d.get("media_reference") is not None:
+            media_type = fomm.MULTIMODAL
+        if media_type is None:
+            media_type = fomm.get_media_type(d.get("filepath", ""))
+
+        frames = {}
+        if media_type == fomm.VIDEO:
+            frames = d.pop("frames", {})
+
+        sample = super().from_dict(d)
+
+        if sample.media_type == fomm.VIDEO:
+            for fn, fd in frames.items():
+                sample.frames[int(fn)] = fofr.Frame.from_dict(fd)
+
+        return sample
+
+
+class SampleView(_SampleMixin, DocumentView):
+    """A view into a :class:`Sample` in a dataset.
+
+    Like :class:`Sample` instances, the fields of a :class:`SampleView`
+    instance can be modified, new fields can be created, and any changes can be
+    saved to the database.
+
+    :class:`SampleView` instances differ from :class:`Sample` instances in the
+    following ways:
+
+    -   A sample view may contain only a subset of the fields of its source
+        sample, either by selecting and/or excluding specific fields
+    -   A sample view may contain array fields or embedded array fields that
+        have been filtered, thus containing only a subset of the array elements
+        from the source sample
+    -   Excluded fields of a sample view may not be accessed or modified
+
+    .. note::
+
+        Sample views should never be created manually; they are generated when
+        accessing the samples in a :class:`fiftyone.core.view.DatasetView`.
+
+    Args:
+        doc: a :class:`fiftyone.core.odm.mixins.DatasetSampleDocument`
+        view: the :class:`fiftyone.core.view.DatasetView` that the sample
+            belongs to
+        selected_fields (None): a set of field names that this sample view is
+            restricted to, if any
+        excluded_fields (None): a set of field names that are excluded from
+            this sample view, if any
+        filtered_fields (None): a set of field names of list fields that are
+            filtered in this sample view, if any
+    """
+
+    _DOCUMENT_CLS = Sample
+
+    def __init__(
+        self,
+        doc,
+        view,
+        selected_fields=None,
+        excluded_fields=None,
+        filtered_fields=None,
+    ):
+        super().__init__(
+            doc,
+            view,
+            selected_fields=selected_fields,
+            excluded_fields=excluded_fields,
+            filtered_fields=filtered_fields,
+        )
+
+        if self.media_type == fomm.VIDEO:
+            self._frames = fofr.FramesView(self)
+        else:
+            self._frames = None
+
+    def __repr__(self):
+        if self._selected_fields is not None:
+            select_fields = ("media_type",) + tuple(self._selected_fields)
+        else:
+            select_fields = None
+
+        kwargs = {}
+        if self.media_type == fomm.VIDEO:
+            kwargs["frames"] = self._frames
+
+        return self._doc.fancy_repr(
+            class_name=self.__class__.__name__,
+            select_fields=select_fields,
+            exclude_fields=self._excluded_fields,
+            **kwargs,
+        )
+
+    def to_dict(self, include_frames=False, include_private=False):
+        """Serializes the sample view to a JSON dictionary.
+
+        Args:
+            include_frames (False): whether to include the frame labels for
+                video samples
+            include_private (False): whether to include private fields
+
+        Returns:
+            a JSON dict
+        """
+        d = super().to_dict(
+            include_frames=include_frames, include_private=include_private
+        )
+
+        if self.selected_field_names or self.excluded_field_names:
+            field_names = set(
+                self._get_field_names(
+                    include_private=include_private,
+                    use_db_fields=True,
+                )
+            )
+
+            if include_frames and self.media_type == fomm.VIDEO:
+                field_names.add("frames")
+
+            d = {k: v for k, v in d.items() if k in field_names}
+
+        return d
+
+    def save(self):
+        """Saves the sample view to the database.
+
+        .. warning::
+
+            This will permanently delete any omitted or filtered contents from
+            the source dataset.
+        """
+        super().save()
+
+    def _save(self, deferred=False):
+        if self.media_type == fomm.VIDEO:
+            _sample_ops, frame_ops = self.frames._save(deferred=deferred)
+        else:
+            _sample_ops, frame_ops = None, None
+
+        sample_ops = super()._save(deferred=deferred)
+
+        if _sample_ops:
+            sample_ops.extend(_sample_ops)
+
+        return sample_ops, frame_ops
+
+
+def _apply_confidence_thresh(label, confidence_thresh):
+    if _is_frames_dict(label):
+        label = {
+            frame_number: _apply_confidence_thresh(
+                frame_dict, confidence_thresh
+            )
+            for frame_number, frame_dict in label.items()
+        }
+    elif isinstance(label, dict):
+        label = {
+            k: _apply_confidence_thresh(v, confidence_thresh)
+            for k, v in label.items()
+        }
+    elif isinstance(label, fol.Keypoints):
+        for keypoint in label.keypoints:
+            keypoint.apply_confidence_threshold(confidence_thresh)
+    elif isinstance(label, fol._HasLabelList):
+        labels = [
+            l
+            for l in getattr(label, label._LABEL_LIST_FIELD)
+            if l.confidence is not None and l.confidence >= confidence_thresh
+        ]
+        setattr(label, label._LABEL_LIST_FIELD, labels)
+    elif isinstance(label, fol.Keypoint):
+        label.apply_confidence_threshold(confidence_thresh)
+    elif hasattr(label, "confidence"):
+        if label.confidence is None or label.confidence < confidence_thresh:
+            label = label.__class__()
+
+    return label
+
+
+def _apply_classes(label, classes):
+    if _is_frames_dict(label):
+        label = {
+            frame_number: _apply_classes(frame_dict, classes)
+            for frame_number, frame_dict in label.items()
+        }
+    elif isinstance(label, dict):
+        label = {k: _apply_classes(v, classes) for k, v in label.items()}
+    elif isinstance(label, fol._HasLabelList):
+        labels = [
+            l
+            for l in getattr(label, label._LABEL_LIST_FIELD)
+            if l.label in classes
+        ]
+        setattr(label, label._LABEL_LIST_FIELD, labels)
+    elif hasattr(label, "label"):
+        if label.label not in classes:
+            label = label.__class__()
+
+    return label
+
+
+def _is_frames_dict(label):
+    return isinstance(label, dict) and fofu.is_frame_number(
+        next(iter(label.keys()))
+    )

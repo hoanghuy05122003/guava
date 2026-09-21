@@ -1,0 +1,226 @@
+[build-system]
+requires = ["setuptools>=75", "wheel", "pybind11", "setuptools-rust"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guava"
+version = "0.1.0"
+description = "Guava — Unified Dataset Management & Visualization Platform (Datumaro + FiftyOne)"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Guava Contributors" },
+]
+keywords = [
+    "computer-vision", "dataset", "annotation", "visualization",
+    "deep-learning", "machine-learning", "data-management"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+# ─── Core dependencies (merged from both Datumaro and FiftyOne) ───
+dependencies = [
+    # --- From Datumaro ---
+    "attrs>=25.3",
+    "cachetools~=7.0",
+    "defusedxml~=0.7",
+    "imagesize~=2.0",
+    "json-stream~=2.4",
+    "lxml~=6.0",
+    "numpy>=2.2,<2.5",
+    "opencv-python-headless>=4.10,<5",
+    "orjson~=3.10",
+    "pandas~=2.3",
+    "pillow~=12.0",
+    "pyarrow>=25.0",
+    "pycocotools~=2.0",
+    "PyYAML~=6.0",
+    "ruamel.yaml~=0.19.1",
+    "shapely~=2.1",
+    "tqdm~=4.67",
+    "typing_extensions~=4.15",
+    # --- From FiftyOne ---
+    "aiofiles",
+    "aiohttp",
+    "boto3",
+    "dacite",
+    "deprecated",
+    "ftfy",
+    "hypercorn>=0.13.2",
+    "Jinja2>=3.0.3",
+    "matplotlib",
+    "mongoengine==0.29.1",
+    "motor>=3.3.2,<4",
+    "packaging",
+    "plotly",
+    "pprintpp",
+    "psutil",
+    "pymongo>=4.9",
+    "pydantic>=2.0",
+    "python-dateutil",
+    "PyYAML>=5.3",
+    "regex",
+    "scikit-learn",
+    "scipy",
+    "setuptools",
+    "starlette>=0.20.4",
+    "strawberry-graphql>=0.246.2",
+    "tabulate",
+    "tornado>=6.1",
+    "urllib3",
+    "xmltodict",
+    "sse-starlette",
+    "websocket-client",
+    "requests",
+    "retrying",
+]
+
+[project.scripts]
+guava = "guava.cli.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/guava"
+Repository = "https://github.com/your-org/guava"
+Documentation = "https://github.com/your-org/guava/docs"
+
+[project.optional-dependencies]
+# Development tools
+dev = [
+    "ruff",
+    "mypy",
+    "pre-commit",
+]
+
+# Testing
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio",
+    "pytest-html",
+    "coverage",
+    "dill",
+    "tifffile",
+]
+
+# Documentation
+docs = [
+    "sphinx==7.4.7",
+    "pydata-sphinx-theme==0.17.1",
+    "sphinx-copybutton",
+    "sphinx-autoapi",
+    "myst-parser",
+    "nbsphinx",
+    "jupyterlab>=4.5",
+    "jupyter",
+]
+
+# TensorFlow support
+tf = [
+    "tensorflow; python_version >= '3.11' and python_version < '3.13' and sys_platform != 'darwin'",
+    "keras>=3.13.2; python_version >= '3.11' and python_version < '3.13' and sys_platform != 'darwin'",
+]
+
+# PyTorch support
+torch = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# HuggingFace integration
+huggingface = [
+    "transformers",
+    "datasets",
+    "huggingface-hub",
+    "tokenizers",
+    "accelerate",
+]
+
+# Ultralytics / YOLO
+ultralytics = [
+    "ultralytics",
+]
+
+# CLI extras
+cli = [
+    "tensorboardX>=1.8,!=2.3",
+    "tabulate",
+    "scipy",
+    "matplotlib>=3.3.1",
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+# Kaggle download support
+kaggle = ["kaggle"]
+
+# Scipy extras (NDR, MPII)
+scipy-extras = ["scipy"]
+
+# NLP/tabular data
+nlp = ["nltk", "tokenizers", "portalocker"]
+
+# Experimental
+experimental = ["polars~=1.35"]
+
+# All integrations
+all = [
+    "guava[torch,huggingface,ultralytics,kaggle,scipy-extras,nlp,cli]",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["guava*"]
+
+[tool.setuptools.package-data]
+"guava" = ["**/*.json", "**/*.yaml", "**/*.yml", "**/*.txt"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = [
+    ".bzr", ".direnv", ".eggs", ".git", ".hg", ".mypy_cache",
+    ".nox", ".pants.d", ".pytype", ".ruff_cache", ".svn", ".venv",
+    "__pypackages__", "_build", "buck-out", "build", "dist",
+    "node_modules", "venv",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "C4", "PIE", "RET", "SIM", "TC", "RUF"]
+ignore = ["N805", "N806", "RET503", "SIM108", "SIM105"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"*test*.py" = ["S", "ANN", "D", "ARG", "PLR", "N8"]
+"__init__.py" = ["F4"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+branch = true
+source = ["src/"]
+omit = ["src/guava/cli/__main__.py", "tests/*"]

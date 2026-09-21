@@ -1,0 +1,2323 @@
+{
+    "models": [
+        {
+            "base_name": "deeplabv3-cityscapes-tf",
+            "base_filename": "deeplabv3-cityscapes.pb",
+            "version": null,
+            "description": "Creates detailed pixel-by-pixel labels for urban scenes, helping autonomous vehicles understand their surroundings",
+            "source": "https://github.com/tensorflow/models/blob/master/research/deeplab/g3doc/model_zoo.md",
+            "author": "Liang-Chieh Chen, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 165712950,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1GKJtItUirHZ2DY_mQu872QuoWZuAHNr8"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.segmenters.TFSemanticSegmenter",
+                    "config": {
+                        "labels_path": "{{eta-resources}}/tf-semantic-segmenters-cityscapes-train-labels.txt",
+                        "resize_to_max_dim": 513,
+                        "input_name": "ImageTensor",
+                        "output_name": "SemanticPredictions"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["segmentation", "cityscapes", "tf", "deeplabv3", "legacy"],
+            "training_data": [
+                {
+                    "name": "Cityscapes",
+                    "url": "https://www.cityscapes-dataset.com/"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "deeplabv3-mnv2-cityscapes-tf",
+            "base_filename": "deeplabv3-mnv2-cityscapes.pb",
+            "version": null,
+            "description": "Efficient street scene labeler designed to run on phones and edge devices with limited resources",
+            "source": "https://github.com/tensorflow/models/blob/master/research/deeplab/g3doc/model_zoo.md",
+            "author": "Liang-Chieh Chen, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 8771639,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1JYx2Z6or9Jm24aWv79-5aQ8Gg9IF_m6Z"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.segmenters.TFSemanticSegmenter",
+                    "config": {
+                        "labels_path": "{{eta-resources}}/tf-semantic-segmenters-cityscapes-train-labels.txt",
+                        "resize_to_max_dim": 513,
+                        "input_name": "ImageTensor",
+                        "output_name": "SemanticPredictions"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["segmentation", "cityscapes", "tf", "deeplabv3", "legacy"],
+            "training_data": [
+                {
+                    "name": "Cityscapes",
+                    "url": "https://www.cityscapes-dataset.com/"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d0-coco-tf1",
+            "base_filename": "efficientdet-d0-coco.tar",
+            "version": null,
+            "description": "Legacy-compatible tiny object detector for older systems still running TensorFlow 1 frameworks",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 40058880,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1mDclIDAMmJzfh7UKe-oBN72XdtwnDC2N",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d0",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d1-coco-tf1",
+            "base_filename": "efficientdet-d1-coco.tar",
+            "version": null,
+            "description": "Legacy version of versatile object finder maintaining compatibility with TensorFlow 1",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 64638976,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1_IkkEDwPe9SkYbeiuP-ZTOZB9P39Ihm5",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d1",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d2-coco-tf1",
+            "base_filename": "efficientdet-d2-coco.tar",
+            "version": null,
+            "description": "Legacy-compatible balanced detector for established pipelines still using TensorFlow 1",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 77598720,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1hgEPV1nzwtOb-lfE3bODmvbG7wmWv_Ve",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d2",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d3-coco-tf1",
+            "base_filename": "efficientdet-d3-coco.tar",
+            "version": null,
+            "description": "Legacy object detector maintaining compatibility for systems using TensorFlow 1",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 111607808,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1OKPbwZ2KMH33KRQhCERPkqT8gTVM2c4h",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d3",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d4-coco-tf1",
+            "base_filename": "efficientdet-d4-coco.tar",
+            "version": null,
+            "description": "Legacy high-accuracy object detector ensuring backward compatibility with TensorFlow 1",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 183848960,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1FO2WwtubQ0I6giHKHSutI-C628JpQM71",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d4",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d5-coco-tf1",
+            "base_filename": "efficientdet-d5-coco.tar",
+            "version": null,
+            "description": "Legacy object detector with the highest accuracy in its family using TensorFlow 1",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 289206272,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1xErF-ZrQi_5Z51l2drXoYzR-JoFhkiB1",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d5",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "efficientdet-d6-coco-tf1",
+            "base_filename": "efficientdet-d6-coco.tar",
+            "version": null,
+            "description": "Legacy deep detector maintaining top accuracy for mature TensorFlow 1 production stacks",
+            "source": "https://github.com/voxel51/automl/tree/master/efficientdet",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 436658176,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1gaGhnZuPdWKsn8IH0dVUXiLYUsqRaZ1a",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.EfficientDet",
+                    "config": {
+                        "architecture_name": "efficientdet-d6",
+                        "labels_path": "{{eta-resources}}/ms-coco-labels.txt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=1.14,<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu>=1.14,<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "efficientdet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-inception-resnet-atrous-v2-coco-tf",
+            "base_filename": "faster-rcnn-inception-resnet-atrous-v2-coco.pb",
+            "version": null,
+            "description": "High-accuracy object finder that sees wider context for better detection in complex scenes",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 245851264,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1tbDgXKYWBKazY6U6whRHhR4OsxZS9LOP"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "detection",
+                "coco",
+                "tf",
+                "faster-rcnn",
+                "inception",
+                "resnet"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-inception-resnet-atrous-v2-lowproposals-coco-tf",
+            "base_filename": "faster-rcnn-inception-resnet-atrous-v2-lowproposals-coco.pb",
+            "version": null,
+            "description": "Speed-optimized detector that runs faster by examining fewer regions while maintaining good accuracy",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 245851253,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "17bR21aOsS8AoxMuGjTbHIUaXWYo7sz9X"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "detection",
+                "coco",
+                "tf",
+                "faster-rcnn",
+                "inception",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-inception-v2-coco-tf",
+            "base_filename": "faster-rcnn-inception-v2-coco.pb",
+            "version": null,
+            "description": "Compact object detector achieving real-time speeds for responsive computer vision applications",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 55542502,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1l1pNy5eH0DzvlMST8mCFXTYODHZBsPls"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "faster-rcnn", "inception"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-nas-coco-tf",
+            "base_filename": "faster-rcnn-nas-coco.pb",
+            "version": null,
+            "description": "Smart detector using NAS-designed architecture for improved object finding across diverse images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 424621069,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1GSHaIQh_kJ0YU4qqulEY67mufwslk5u9"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "faster-rcnn"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-nas-lowproposals-coco-tf",
+            "base_filename": "faster-rcnn-nas-lowproposals-coco.pb",
+            "version": null,
+            "description": "Fast NAS-designed detector that speeds up processing for time-sensitive applications and deployments",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 424548921,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1dpsLJRTcHyso78OmMSHQtz_2SUlHAt0l"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "faster-rcnn", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-resnet101-coco-tf",
+            "base_filename": "faster-rcnn-resnet101-coco.pb",
+            "version": null,
+            "description": "Deep object detector balancing accuracy and speed for reliable performance across varied scenes",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 195464472,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "18OOcBY45JYWwHdWyBRUaoe2H0DF4G8Gw"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "detection",
+                "coco",
+                "tf",
+                "faster-rcnn",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-resnet101-lowproposals-coco-tf",
+            "base_filename": "faster-rcnn-resnet101-lowproposals-coco.pb",
+            "version": null,
+            "description": "Accelerated deep detector that processes fewer regions for faster results with minimal accuracy loss",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 195464472,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1poAw-ZTwEXNfP3NTqlpBxGcQUR5Y7A7D"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "detection",
+                "coco",
+                "tf",
+                "faster-rcnn",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-resnet50-coco-tf",
+            "base_filename": "faster-rcnn-resnet50-coco.pb",
+            "version": null,
+            "description": "Versatile object detector suitable for everyday vision tasks in research and production environments",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 119089545,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1N7SZcZwedztcSxXKFQiXDIhjpibAtnJx"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "faster-rcnn", "resnet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "faster-rcnn-resnet50-lowproposals-coco-tf",
+            "base_filename": "faster-rcnn-resnet50-lowproposals-coco.pb",
+            "version": null,
+            "description": "Speed-focused detector optimized for running on embedded devices and resource-limited hardware",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Shaoqing Ren, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 119089545,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1VJghRs4W7i_F6GAzoFwAzuMs_wm1g8vT"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "detection",
+                "coco",
+                "tf",
+                "faster-rcnn",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "inception-resnet-v2-imagenet-tf1",
+            "base_filename": "inception-resnet-v2-imagenet.pb",
+            "version": null,
+            "description": "High-accuracy image classifier with advanced architecture for precise categorization and feature extraction",
+            "source": "https://github.com/tensorflow/models/tree/archive/research/slim#pre-trained-models",
+            "author": "Christian Szegedy, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 224198038,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1hCw4ocYcoxQ4psKEjvlPQd5-CCroHsZ6"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.TFSlimClassifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "network_name": "inception_resnet_v2",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/tfslim-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "inception",
+                "resnet"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "inception-v4-imagenet-tf1",
+            "base_filename": "inception-v4-imagenet.pb",
+            "version": null,
+            "description": "Enhanced image classifier with deeper architecture improving accuracy for demanding vision tasks",
+            "source": "https://github.com/tensorflow/models/tree/archive/research/slim#pre-trained-models",
+            "author": "Christian Szegedy, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 171242881,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1WaLe57G8wt0rty_GL0fnHwGZDqdJhKwT"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.TFSlimClassifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "network_name": "inception_v4",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/tfslim-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "inception",
+                "legacy"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "mask-rcnn-inception-resnet-v2-atrous-coco-tf",
+            "base_filename": "mask-rcnn-inception-resnet-v2-atrous-coco.pb",
+            "version": null,
+            "description": "Creates precise object outlines and boxes for detailed scene understanding in high-resolution images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 266873310,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1-Q2LoPx3LIYSQo4_AXau9fd8zYyjSjmK"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsInstanceSegmenter",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "mask_thresh": 0.5
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "instances",
+                "coco",
+                "tf",
+                "mask-rcnn",
+                "inception",
+                "resnet"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "mask-rcnn-inception-v2-coco-tf",
+            "base_filename": "mask-rcnn-inception-v2-coco.pb",
+            "version": null,
+            "description": "Fast object outliner generating masks and boxes with lower computing requirements for real-time use",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 67138064,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1Nj5WCeI6MeO4OyltOaZbvBoz_RmRE3pI"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsInstanceSegmenter",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "mask_thresh": 0.5
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["instances", "coco", "tf", "mask-rcnn", "inception"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "mask-rcnn-resnet101-atrous-coco-tf",
+            "base_filename": "mask-rcnn-resnet101-atrous-coco.pb",
+            "version": null,
+            "description": "Enhanced object outliner providing detailed masks with better handling of large objects in scenes",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 221832819,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1PvW3E6Ey3yC7E7mri_Bw6FyjyOOy4_aX"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsInstanceSegmenter",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "mask_thresh": 0.5
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "instances",
+                "coco",
+                "tf",
+                "mask-rcnn",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "mask-rcnn-resnet50-atrous-coco-tf",
+            "base_filename": "mask-rcnn-resnet50-atrous-coco.pb",
+            "version": null,
+            "description": "General-purpose object outliner creating masks and boxes suitable for most vision analysis tasks",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 145011833,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1QGlpJw97j7XxPlHC5FtWjgil6ebPTgEG"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsInstanceSegmenter",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "mask_thresh": 0.5
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": [
+                "instances",
+                "coco",
+                "tf",
+                "mask-rcnn",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "mobilenet-v2-imagenet-tf1",
+            "base_filename": "mobilenet-v2-imagenet.pb",
+            "version": null,
+            "description": "Efficient mobile classifier using specialized architecture for fast image recognition on phones",
+            "source": "https://github.com/tensorflow/models/tree/archive/research/slim#pre-trained-models",
+            "author": "Mark Sandler, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 14297900,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1cey7kmMTnDQG0zcdHauC291fann-Xthz"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.TFSlimClassifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "network_name": "mobilenet_v2",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/tfslim-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "mobilenet"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "resnet-v1-50-imagenet-tf1",
+            "base_filename": "resnet-v1-50-imagenet.pb",
+            "version": null,
+            "description": "Classic image recognition model providing reliable categorization and visual features for many applications",
+            "source": "https://github.com/tensorflow/models/tree/archive/research/slim#pre-trained-models",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 102591940,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1NCGP3KzdKII97mpYYtNHg2mcp7Ew_HRR"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.TFSlimClassifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "network_name": "resnet_v1_50",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/tfslim-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "resnet-v2-50-imagenet-tf1",
+            "base_filename": "resnet-v2-50-imagenet.pb",
+            "version": null,
+            "description": "Improved image classifier with smoother training process and better features for adapting to new tasks",
+            "source": "https://github.com/tensorflow/models/tree/archive/research/slim#pre-trained-models",
+            "author": "Kaiming He, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 102614513,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1cWT55Pp9wl2zR0Om8y-g8QVskYEthQfi"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.TFSlimClassifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "network_name": "resnet_v2_50",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/tfslim-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "resnet",
+                "legacy"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "rfcn-resnet101-coco-tf",
+            "base_filename": "rfcn-resnet101-coco.pb",
+            "version": null,
+            "description": "Efficient object finder producing accurate boxes for eighty object types with optimized processing speed",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Jifeng Dai, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 218274055,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "15BMAAo0cGBINTsM-KL9ZrwSHnkZlFtNc"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "rfcn", "resnet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "ssd-inception-v2-coco-tf",
+            "base_filename": "ssd-inception-v2-coco.pb",
+            "version": null,
+            "description": "Real-time object finder that quickly identifies eighty common items in any image",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Wei Liu, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 102241138,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1Vt_fuMhEdWxI2XBWLEtNLTJhG00rid4R"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "ssd", "inception"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "ssd-mobilenet-v1-coco-tf",
+            "base_filename": "ssd-mobilenet-v1-coco.pb",
+            "version": null,
+            "description": "Mobile object detector that runs smoothly on phones and edge computing processors",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Wei Liu, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 29185289,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1X6i1Q2hBfDZ6D4ROoJn1Xbwu0vMqvgQs"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "ssd", "mobilenet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "ssd-mobilenet-v1-fpn-coco-tf",
+            "base_filename": "ssd-mobilenet-v1-fpn-coco.pb",
+            "version": null,
+            "description": "Mobile object detector that runs smoothly on phones and edge computing processors",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Wei Liu, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 51346898,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1ZvVQTuDIexyfntq8ajBVp5aSndHW6wQk"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "ssd", "mobilenet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "ssd-resnet50-fpn-coco-tf",
+            "base_filename": "ssd-resnet50-fpn-coco.pb",
+            "version": null,
+            "description": "Accurate object detector combining strong backbone with multi-scale detection for better results",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf1_detection_zoo.md",
+            "author": "Wei Liu, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 134294086,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1pC9WX7Ol2cy4ERAcLQ-a2Dd04d91vJxj"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TFModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf", "ssd", "resnet", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "vgg16-imagenet-tf1",
+            "base_filename": "vgg16-imagenet.npz",
+            "version": null,
+            "description": "TensorFlow version of the classic image classifier supporting legacy production systems",
+            "source": "https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-readme-md",
+            "author": "Karen Simonyan, et al.",
+            "license": "CC-BY-4.0",
+            "size_bytes": 553436134,
+            "manager": {
+                "config": {
+                    "google_drive_id": "0B_-5gc091ngGMzBFMVJ0RE9HNmc"
+                },
+                "type": "fiftyone.core.models.ModelManager"
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.classifiers.VGG16Classifier",
+                    "config": {
+                        "attr_name": "imagenet",
+                        "generate_features": true,
+                        "labels_path": "{{eta-resources}}/vgg16-imagenet-labels.txt"
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": [
+                "classification",
+                "embeddings",
+                "logits",
+                "imagenet",
+                "tf1",
+                "vgg",
+                "legacy"
+            ],
+            "training_data": [
+                {
+                    "name": "ImageNet-1K",
+                    "url": "https://www.image-net.org/download.php"
+                }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "yolo-v2-coco-tf1",
+            "base_filename": "yolo-v2-coco.weights",
+            "version": null,
+            "description": "Classic real-time detector finding eighty object types quickly for video analysis applications",
+            "source": "https://github.com/thtrieu/darkflow",
+            "author": "Joseph Redmon, et al.",
+            "license": "GPL-3.0",
+            "size_bytes": 203934260,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "google_drive_id": "1ajuPZws47SOw3xJc4Wvk1yuiB3qv8ycr"
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.YOLODetector",
+                    "config": {
+                        "config_dir": "{{eta}}/tensorflow/darkflow/cfg/",
+                        "config_path": "{{eta}}/tensorflow/darkflow/cfg/yolo.cfg",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow<2"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": ["tensorflow-gpu<2"]
+                }
+            },
+            "tags": ["detection", "coco", "tf1", "yolo", "legacy"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2020-12-11 13:45:51"
+        },
+        {
+            "base_name": "centernet-hg104-512-coco-tf2",
+            "base_filename": "centernet_hg104_512x512_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Efficient object finder optimized for medium-resolution images to run faster on regular computers",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 1600851968,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200713/centernet_hg104_512x512_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-01-6 11:01:34"
+        },
+        {
+            "base_name": "centernet-hg104-1024-coco-tf2",
+            "base_filename": "centernet_hg104_1024x1024_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Finds objects in high-resolution photos by pinpointing their centers with exceptional accuracy and speed",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 1426460092,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_hg104_1024x1024_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-26 07:04:23"
+        },
+        {
+            "base_name": "centernet-resnet50-v1-fpn-512-coco-tf2",
+            "base_filename": "centernet_resnet50_v1_fpn_512x512_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Balanced object detector that works well for most everyday computer vision tasks and applications",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 204067969,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_resnet50_v1_fpn_512x512_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet", "resnet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 14:45:23"
+        },
+        {
+            "base_name": "centernet-resnet101-v1-fpn-512-coco-tf2",
+            "base_filename": "centernet_resnet101_v1_fpn_512x512_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Advanced object finder with deeper processing for more accurate results in challenging scenes",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 345992335,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_resnet101_v1_fpn_512x512_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet", "resnet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 14:55:13"
+        },
+        {
+            "base_name": "centernet-resnet50-v2-512-coco-tf2",
+            "base_filename": "centernet_resnet50_v2_512x512_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Updated version with improved training stability for more consistent object detection across different images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 237977273,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_resnet50_v2_512x512_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet", "resnet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 14:59:23"
+        },
+        {
+            "base_name": "centernet-mobilenet-v2-fpn-512-coco-tf2",
+            "base_filename": "centernet_mobilenetv2_fpn_od.tar.gz",
+            "version": null,
+            "description": "Lightweight object detector that runs smoothly on phones and other portable devices",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Xingyi Zhou, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 44016454,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20210210/centernet_mobilenetv2fpn_512x512_coco17_od.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "centernet", "mobilenet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 17:05:20"
+        },
+        {
+            "base_name": "efficientdet-d0-512-coco-tf2",
+            "base_filename": "efficientdet_d0_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Tiny object detector optimized for phones and embedded systems working with smaller images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 30736482,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d0_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:25:10"
+        },
+        {
+            "base_name": "efficientdet-d1-640-coco-tf2",
+            "base_filename": "efficientdet_d1_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Versatile object finder for medium-sized images supporting many different computer vision applications",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 51839363,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d1_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:25:10"
+        },
+        {
+            "base_name": "efficientdet-d2-768-coco-tf2",
+            "base_filename": "efficientdet_d2_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Balanced object detector offering good speed and accuracy for general-purpose image analysis",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 62929273,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d2_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:40:20"
+        },
+        {
+            "base_name": "efficientdet-d3-896-coco-tf2",
+            "base_filename": "efficientdet_d3_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Accurate object finder for larger images with better detection of big objects",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 92858658,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d3_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:42:30"
+        },
+        {
+            "base_name": "efficientdet-d4-1024-coco-tf2",
+            "base_filename": "efficientdet_d4_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "High-accuracy object detector for detailed images delivering precise results in complex scenes",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 158496448,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d4_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:42:30"
+        },
+        {
+            "base_name": "efficientdet-d5-1280-coco-tf2",
+            "base_filename": "efficientdet_d5_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Precision-focused object finder for very large images prioritizing accuracy over speed",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 256286417,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d5_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 18:50:20"
+        },
+        {
+            "base_name": "efficientdet-d6-1280-coco-tf2",
+            "base_filename": "efficientdet_d6_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Deep object detector for large images achieving state-of-the-art accuracy on challenging content",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 393872877,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d6_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 19:00:20"
+        },
+        {
+            "base_name": "efficientdet-d7-1536-coco-tf2",
+            "base_filename": "efficientdet_d7_coco17_tpu-32.tar.gz",
+            "version": null,
+            "description": "Maximum accuracy object finder for extra-large images pushing detection quality to the limit",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mingxing Tan, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 394474998,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/efficientdet_d7_coco17_tpu-32.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "efficientdet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 19:05:20"
+        },
+        {
+            "base_name": "ssd-mobilenet-v2-320-coco17",
+            "base_filename": "ssd_mobilenet_v2_320x320_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Fast object finder optimized for quick GPU processing of smaller input images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mark Sandler, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 46042990,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/ssd_mobilenet_v2_320x320_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "ssd", "mobilenet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 20:01:40"
+        },
+        {
+            "base_name": "ssd-mobilenet-v1-fpn-640-coco17",
+            "base_filename": "ssd_mobilenet_v1_fpn_640x640_coco17_tpu-8.tar.gz",
+            "version": null,
+            "description": "Enhanced mobile detector that better finds small objects in larger resolution images",
+            "source": "https://github.com/tensorflow/models/blob/archive/research/object_detection/g3doc/tf2_detection_zoo.md",
+            "author": "Mark Sandler, et al.",
+            "license": "Apache 2.0",
+            "size_bytes": 46042990,
+            "manager": {
+                "type": "fiftyone.core.models.ModelManager",
+                "config": {
+                    "url": "http://download.tensorflow.org/models/object_detection/tf2/20200711/ssd_mobilenet_v1_fpn_640x640_coco17_tpu-8.tar.gz",
+                    "extract_archive": true,
+                    "delete_archive": true
+                }
+            },
+            "default_deployment_config_dict": {
+                "type": "fiftyone.utils.eta.ETAModel",
+                "config": {
+                    "type": "eta.detectors.TF2ModelsDetector",
+                    "config": {
+                        "labels_path": "{{eta}}/tensorflow/models/research/object_detection/data/mscoco_complete_label_map.pbtxt",
+                        "confidence_thresh": 0.3
+                    }
+                }
+            },
+            "requirements": {
+                "cpu": {
+                    "support": true,
+                    "packages": ["tensorflow>=2|tensorflow-macos"]
+                },
+                "gpu": {
+                    "support": true,
+                    "packages": [
+                        "tensorflow-gpu>=2|tensorflow>=2|tensorflow-macos"
+                    ]
+                }
+            },
+            "tags": ["detection", "coco", "tf2", "ssd", "mobilenet"],
+            "training_data": [
+                { "name": "MS COCO 2017", "url": "https://cocodataset.org" }
+            ],
+            "date_added": "2021-12-27 20:05:20"
+        }
+    ]
+}

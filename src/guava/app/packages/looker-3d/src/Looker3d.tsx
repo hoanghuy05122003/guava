@@ -1,0 +1,219 @@
+import * as fos from "@fiftyone/state";
+import { is3d, isDirect3dSamplePath, setContains3d } from "@fiftyone/utilities";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRecoilValue, useSetRecoilState } from "recoil";
+import { ActionBar } from "./action-bar";
+import { Container } from "./containers";
+import { Fo3dErrorBoundary } from "./ErrorBoundary";
+import { Leva } from "./fo3d/Leva";
+import { MediaTypeFo3dComponent } from "./fo3d/MediaTypeFo3d";
+import { getMediaPathForFo3dSample } from "./fo3d/utils";
+import { useHotkey } from "./hooks";
+import { getLooker3dRenderKey } from "./looker3d-render-key";
+import {
+  currentActionAtom,
+  fo3dContainsBackground,
+  isColormapModalOpenAtom,
+  isGridOnAtom,
+  isLevaConfigPanelOnAtom,
+} from "./state";
+
+/**
+ * This component renders all supported 3D contexts through the FO3D pipeline,
+ * including legacy point-cloud media types.
+ */
+export const Looker3d = () => {
+  const mediaType = useRecoilValue(fos.mediaType);
+  const has3dSlices = setContains3d(useRecoilValue(fos.groupMediaTypesSet));
+  const isDynamicGroup = useRecoilValue(fos.isDynamicGroup);
+  const isGroup = useRecoilValue(fos.isGroup);
+  const modalMode = fos.useModalMode();
+  const isMain2DViewerVisible = useRecoilValue(
+    fos.groupMediaIsMain2DViewerVisible,
+  );
+  const parentMediaType = useRecoilValue(fos.parentMediaTypeSelector);
+  const sample = fos.useStableSceneSample3d();
+  const mediaField = useRecoilValue(fos.selectedMediaField(true));
+  const mediaPath = useMemo(
+    () => (sample ? getMediaPathForFo3dSample(sample, mediaField) : null),
+    [sample, mediaField],
+  );
+  const hasDirect3dPath = useMemo(
+    () =>
+      Boolean(
+        mediaPath &&
+        (isDirect3dSamplePath(mediaPath) ||
+          isDirect3dSamplePath(sample?.sample?.filepath)),
+      ),
+    [mediaPath, sample],
+  );
+
+  const [isHovering, setIsHovering] = useState(false);
+  const timeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const hoveringRef = useRef(false);
+
+  const setCurrentAction = useSetRecoilState(currentActionAtom);
+
+  const setFo3dHasBackground = useSetRecoilState(fo3dContainsBackground);
+
+  const thisSampleId = useRecoilValue(fos.modalSampleId);
+
+  // test affordance: 3D selection has no DOM signal, so expose its count
+  const selectedLabelCount = useRecoilValue(fos.selectedLabels).length;
+
+  useEffect(() => {
+    return () => {
+      setFo3dHasBackground(false);
+    };
+  }, [setFo3dHasBackground]);
+
+  const shouldRenderFo3dComponent = useMemo(
+    () =>
+      is3d(mediaType) ||
+      hasDirect3dPath ||
+      (mediaType === "group" && has3dSlices) ||
+      (isDynamicGroup && is3d(parentMediaType)),
+    [mediaType, hasDirect3dPath, has3dSlices, isDynamicGroup, parentMediaType],
+  );
+
+  const sampleMap = fos.useStableActive3dSamplesMap();
+  const activeFo3dSlice = fos.useStableActiveFo3dSlice();
+  const renderContext =
+    modalMode === fos.ModalMode.ANNOTATE && !(isGroup && isMain2DViewerVisible)
+      ? "annotate-focused"
+      : "default";
+
+  const looker3dSceneKey = getLooker3dRenderKey({
+    modalSampleId: thisSampleId,
+    activeFo3dSlice,
+    renderContext,
+  });
+
+  useHotkey(
+    "KeyG",
+    async ({ set }) => {
+      set(isGridOnAtom, (prev) => !prev);
+    },
+    [],
+  );
+
+  useHotkey(
+    "Escape",
+    async ({ snapshot, set }) => {
+      const isTooltipLocked = await snapshot.getPromise(fos.isTooltipLocked);
+
+      if (isTooltipLocked) {
+        set(fos.isTooltipLocked, false);
+        return;
+      }
+
+      const isColormapModalOpen = await snapshot.getPromise(
+        isColormapModalOpenAtom,
+      );
+      if (isColormapModalOpen) {
+        set(isColormapModalOpenAtom, false);
+        return;
+      }
+
+      const isLevaConfigPanelOn = await snapshot.getPromise(
+        isLevaConfigPanelOnAtom,
+      );
+      if (isLevaConfigPanelOn) {
+        set(isLevaConfigPanelOnAtom, false);
+        return;
+      }
+
+      const panels = await snapshot.getPromise(fos.lookerPanels);
+      const currentAction = await snapshot.getPromise(currentActionAtom);
+
+      if (currentAction) {
+        set(currentActionAtom, null);
+        return;
+      }
+
+      for (const panel of ["help", "json"]) {
+        if (panels[panel].isOpen) {
+          set(fos.lookerPanels, {
+            ...panels,
+            [panel]: { ...panels[panel], isOpen: false },
+          });
+          return;
+        }
+      }
+
+      // don't proceed if sample being hovered on is from looker2d
+      const hovered = await snapshot.getPromise(fos.hoveredSample);
+      const isHoveredSampleNotInLooker3d =
+        hovered &&
+        !Object.values(sampleMap).find((s) => s.sample._id === hovered._id);
+
+      if (isHoveredSampleNotInLooker3d) {
+        return;
+      }
+
+      const fullscreen = await snapshot.getPromise(fos.fullscreen);
+      if (fullscreen) {
+        set(fos.fullscreen, false);
+        return;
+      }
+
+      const selectedLabels = await snapshot.getPromise(fos.selectedLabels);
+      if (selectedLabels && selectedLabels.length > 0) {
+        set(fos.selectedLabelMap, {});
+        return;
+      }
+
+      set(fos.hiddenLabels, {});
+      set(fos.modalSelector, null);
+    },
+    [sampleMap, isHovering],
+    {
+      useTransaction: false,
+    },
+  );
+
+  const clear = useCallback(() => {
+    if (hoveringRef.current) return;
+    timeout.current && clearTimeout(timeout.current);
+    setIsHovering(false);
+    setCurrentAction(null);
+  }, [setCurrentAction]);
+
+  const update = useCallback(() => {
+    !isHovering && setIsHovering(true);
+    timeout.current && clearTimeout(timeout.current);
+    timeout.current = setTimeout(clear, 3000);
+
+    return () => {
+      timeout.current && clearTimeout(timeout.current);
+    };
+  }, [clear, isHovering]);
+
+  if (!sample) return null;
+
+  if (!shouldRenderFo3dComponent) {
+    return <div>Unsupported media type: {mediaType}</div>;
+  }
+
+  return (
+    <Fo3dErrorBoundary key={looker3dSceneKey} boundaryName="fo3d">
+      <Leva />
+      <Container
+        onMouseOver={update}
+        onMouseMove={update}
+        data-cy="looker3d"
+        data-cy-selected-label-count={selectedLabelCount}
+      >
+        <MediaTypeFo3dComponent key={looker3dSceneKey} />
+        <ActionBar
+          onMouseEnter={() => {
+            hoveringRef.current = true;
+          }}
+          onMouseLeave={() => {
+            hoveringRef.current = false;
+          }}
+        />
+      </Container>
+    </Fo3dErrorBoundary>
+  );
+};

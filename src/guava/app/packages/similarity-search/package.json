@@ -1,0 +1,58 @@
+{
+    "name": "@fiftyone/similarity-search",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "watch": "nodemon --watch ./src --ext js,jsx,ts,tsx --exec 'yarn build'"
+    },
+    "files": [
+        "dist"
+    ],
+    "main": "src/index.ts",
+    "dependencies": {
+        "@fiftyone/components": "*",
+        "@fiftyone/operators": "*",
+        "@fiftyone/plugins": "*",
+        "@fiftyone/spaces": "*",
+        "@fiftyone/state": "*",
+        "@voxel51/voodo": "catalog:"
+    },
+    "devDependencies": {
+        "@mui/icons-material": "catalog:",
+        "@mui/material": "catalog:",
+        "@react-spring/web": "catalog:",
+        "@types/react": "catalog:",
+        "@vitejs/plugin-react": "catalog:",
+        "jotai": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "react-error-boundary": "catalog:",
+        "react-is": "catalog:",
+        "react-relay": "catalog:",
+        "recoil": "catalog:",
+        "recoil-relay": "catalog:",
+        "relay-runtime": "catalog:",
+        "styled-components": "catalog:",
+        "vite": "catalog:",
+        "vite-plugin-externals": "catalog:"
+    },
+    "fiftyone": {
+        "script": "dist/index.umd.js"
+    },
+    "peerDependencies": {
+        "@mui/icons-material": "*",
+        "@mui/material": "*",
+        "@react-spring/web": "*",
+        "jotai": "*",
+        "react": "*",
+        "react-dom": "*",
+        "react-error-boundary": "*",
+        "react-is": "*",
+        "react-relay": "*",
+        "recoil": "*",
+        "recoil-relay": "*",
+        "styled-components": "*"
+    }
+}

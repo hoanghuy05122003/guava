@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.dll
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+nosetests.xml
+pytest_report.html
+
+# Type checking
+.mypy_cache/
+.pytype/
+.pyre/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Rust
+target/
+Cargo.lock
+
+# Node.js (App)
+node_modules/
+.yarn/cache
+.yarn/unplugged
+.pnp.*
+.eslintcache
+app/build/
+app/dist/
+app/.next/
+
+# Documentation build
+docs/_build/
+docs/api/
+
+# Guava-specific
+.guava/
+guava_config.json
+*.guava
+
+# MongoDB
+*.db
+
+# OS
+Thumbs.db
+.DS_Store

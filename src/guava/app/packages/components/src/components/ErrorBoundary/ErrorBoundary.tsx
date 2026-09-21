@@ -1,0 +1,203 @@
+import { useTrackEvent } from "@fiftyone/analytics";
+import { useClearModal } from "@fiftyone/state";
+import {
+  GraphQLError,
+  NetworkError,
+  NotFoundError,
+  OperatorError,
+  PanelEventError,
+  ServerError,
+} from "@fiftyone/utilities";
+import { Clear } from "@mui/icons-material";
+import classnames from "classnames";
+import React, {
+  ComponentType,
+  PropsWithChildren,
+  useEffect,
+  useLayoutEffect,
+} from "react";
+import { ErrorBoundary as Boundary, FallbackProps } from "react-error-boundary";
+import scrollableStyles from "../../scrollable.module.css";
+import CodeBlock from "../CodeBlock";
+import Loading from "../Loading";
+import style from "./ErrorBoundary.module.css";
+
+type AppError =
+  | GraphQLError
+  | NetworkError
+  | NotFoundError
+  | ServerError
+  | OperatorError
+  | PanelEventError;
+
+interface Props<T extends AppError> extends FallbackProps {
+  error: T;
+}
+
+interface ErrorDisplayProps<T extends AppError> {
+  error: T;
+  onReset?: () => void;
+  disableReset?: boolean;
+  resetErrorBoundary: () => void;
+}
+
+/**
+ * Note: we shouldn't add any side effects to this component.
+ * For that, use `ErrorsDisplayWithSideEffects`.
+ */
+export const ErrorDisplayMarkup = <T extends AppError>({
+  error,
+  onReset,
+  disableReset,
+  resetErrorBoundary,
+}: ErrorDisplayProps<T>) => {
+  if (error instanceof NotFoundError) {
+    return <Loading>{error.message}</Loading>;
+  }
+
+  let messages: { message: string; content: string }[] = [];
+
+  if (error instanceof GraphQLError) {
+    messages = error.errors.map((e: any) => {
+      const stack = e?.extensions?.stack;
+      const trace = Array.isArray(stack) ? stack.join("\n") : stack;
+      return {
+        message: e?.message,
+        content: typeof trace === "string" && trace ? "\n\n" + trace : "",
+      };
+    });
+  } else if (error instanceof NetworkError) {
+    messages = [];
+    if (error.code)
+      messages.push({ message: "Code", content: String(error.code) });
+    if (error.route) messages.push({ message: "Route", content: error.route });
+    if (error.payload)
+      messages.push({
+        message: "Payload",
+        content: JSON.stringify(error.payload, null, 2),
+      });
+  } else if (error instanceof OperatorError) {
+    if (error.message) {
+      messages.push({ message: "Message", content: error.message });
+    }
+    if (error.operator) {
+      messages.push({ message: "Operator", content: error.operator });
+    }
+    if (error instanceof PanelEventError) {
+      messages.push({ message: "Event", content: error.event });
+    }
+    messages.push({ message: "Trace", content: error.stack });
+  }
+  if (error.stack && !(error instanceof OperatorError)) {
+    messages = [...messages, { message: "Trace", content: error.stack }];
+  }
+
+  function handleReset() {
+    if (onReset) {
+      onReset();
+    }
+    resetErrorBoundary();
+  }
+
+  return (
+    <div
+      className={classnames(style.wrapper, scrollableStyles.scrollable)}
+      data-cy={"error-boundary"}
+    >
+      <div className={classnames(style.container, scrollableStyles.scrollable)}>
+        <div className={style.heading}>
+          <div>
+            {error.name}
+            {error.message ? ": " + error.message : null}
+          </div>
+          {!disableReset && (
+            <div>
+              <span title={"Reset"} onClick={handleReset}>
+                <Clear />
+              </span>
+            </div>
+          )}
+        </div>
+        {messages.map(({ message, content }, i) => (
+          <div key={i} className={style.content}>
+            <div className={style.contentHeading}>
+              {message ? message : null}
+            </div>
+            {content && (
+              <CodeBlock
+                text={content.trim().replace(/\n+/g, "\n")}
+                language="javascript"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ErrorsDisplayWithSideEffects = (
+  onReset?: () => void,
+  disableReset?: boolean,
+) => {
+  const FallbackComponent = <T extends AppError>({
+    error,
+    resetErrorBoundary,
+  }: Props<T>) => {
+    const clearModal = useClearModal();
+    useLayoutEffect(() => {
+      clearModal();
+    }, []);
+
+    return (
+      <ErrorDisplayMarkup
+        error={error}
+        onReset={onReset}
+        disableReset={disableReset}
+        resetErrorBoundary={resetErrorBoundary}
+      />
+    );
+  };
+  return FallbackComponent;
+};
+
+const TrackFallback =
+  (
+    Fallback: ComponentType<any> | undefined,
+    onReset?: () => void,
+    disableReset?: boolean,
+  ) =>
+  (props: any) => {
+    const ActualFallback =
+      Fallback || ErrorsDisplayWithSideEffects(onReset, disableReset);
+    const trackEvent = useTrackEvent();
+
+    useEffect(() => {
+      trackEvent("uncaught_app_error", {
+        error: props?.error?.message || props?.error?.name || props?.error,
+        stack: props?.error?.stack,
+        messages: props?.error?.errors?.map((e: any) => e.message),
+      });
+    }, []);
+
+    return <ActualFallback {...props} />;
+  };
+
+const ErrorBoundary: React.FC<
+  PropsWithChildren<{
+    onReset?: () => void;
+    disableReset?: boolean;
+    Fallback?: ComponentType;
+  }>
+> = ({ children, onReset, disableReset, Fallback }) => {
+  // @ts-ignore
+  return (
+    <Boundary
+      FallbackComponent={TrackFallback(Fallback, onReset, disableReset)}
+    >
+      {children}
+    </Boundary>
+  );
+};
+
+export default ErrorBoundary;

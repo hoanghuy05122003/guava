@@ -1,0 +1,30 @@
+import { Box } from "@mui/material";
+import { useCallback } from "react";
+import OperatorIO from "../OperatorIO";
+
+export function OperatorPromptForm({ operatorPrompt }) {
+  const setFormState = useCallback(
+    (data, liteValues) => {
+      const formData = { ...data };
+      for (const field in formData) {
+        operatorPrompt.setFieldValue(field, formData[field]);
+      }
+      operatorPrompt.setLiteValues(liteValues);
+    },
+    [operatorPrompt],
+  );
+
+  return (
+    <Box component={"form"} p={2} onSubmit={operatorPrompt.onSubmit}>
+      <OperatorIO
+        id={operatorPrompt.id}
+        schema={operatorPrompt.inputFields}
+        onChange={setFormState}
+        data={operatorPrompt.promptingOperator.params}
+        errors={operatorPrompt?.validationErrors || []}
+        initialData={operatorPrompt.promptingOperator.initialParams}
+        onValidationErrors={operatorPrompt.setCustomValidationErrors}
+      />
+    </Box>
+  );
+}

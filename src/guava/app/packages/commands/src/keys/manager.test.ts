@@ -1,0 +1,462 @@
+/**
+ * Copyright 2017-2025, Voxel51, Inc.
+ */
+
+import { describe, it, expect, beforeEach } from "vitest";
+import { KeyManager } from "./KeyManager";
+import { CommandRegistry } from "../registry";
+import { ActionManager } from "../actions";
+
+describe("KeyManager", () => {
+  let keyManager: KeyManager;
+  let commandRegistry: CommandRegistry;
+  beforeEach(() => {
+    commandRegistry = new CommandRegistry(new ActionManager());
+    keyManager = new KeyManager(commandRegistry);
+  });
+
+  it("can register a binding", async () => {
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s", "fo.test.command");
+    }).not.toThrow();
+  });
+  it("does not register bindings for undefined commands", () => {
+    expect(() => {
+      keyManager.bindKey("ctrl+s", "fo.unregistered");
+    }).toThrowError(
+      "The command id fo.unregistered is not registered for binding ctrl+s",
+    );
+  });
+  it("can match a single sequence command binding", async () => {
+    const keyEvent = new KeyboardEvent("keydown", { ctrlKey: true, key: "s" });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s", "fo.test.command");
+    }).not.toThrow();
+    const state = keyManager.match(keyEvent);
+    expect(state.full).toBeDefined();
+  });
+
+  it("can match a single key binding", async () => {
+    const keyEvent = new KeyboardEvent("keydown", { key: "s" });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("s", "fo.test.command");
+    }).not.toThrow();
+    const state = keyManager.match(keyEvent);
+    expect(state.full).toBeDefined();
+  });
+
+  it("can match a single sequence command binding alt+space", async () => {
+    const keyEvent = new KeyboardEvent("keydown", {
+      altKey: true,
+      key: String.fromCharCode(160),
+    });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("alt+space", "fo.test.command");
+    }).not.toThrow();
+    const state = keyManager.match(keyEvent);
+    expect(state.full).toBeDefined();
+  });
+
+  it("does not match a single sequence command binding with unexpected modifier keys", async () => {
+    const keyEvent = new KeyboardEvent("keydown", {
+      ctrlKey: true,
+      altKey: true,
+      key: "s",
+    });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s", "fo.test.command");
+    }).not.toThrow();
+    const state = keyManager.match(keyEvent);
+    expect(state.full).toBeUndefined();
+  });
+
+  it("can match a command binding with two sequences", async () => {
+    const keyEvent1 = new KeyboardEvent("keydown", { ctrlKey: true, key: "s" });
+    const keyEvent2 = new KeyboardEvent("keydown", { altKey: true, key: "d" });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s, alt+d", "fo.test.command");
+    }).not.toThrow();
+    let state = keyManager.match(keyEvent1);
+    expect(state.partial).toBe(true);
+    state = keyManager.match(keyEvent2);
+    expect(state.full).toBeDefined();
+  });
+
+  it("can match a command binding with three sequences", async () => {
+    const keyEvent1 = new KeyboardEvent("keydown", { ctrlKey: true, key: "s" });
+    const keyEvent2 = new KeyboardEvent("keydown", { altKey: true, key: "d" });
+    const keyEvent3 = new KeyboardEvent("keydown", { metaKey: true, key: "p" });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s, alt+d, meta+p", "fo.test.command");
+    }).not.toThrow();
+    let state = keyManager.match(keyEvent1);
+    expect(state.partial).toBe(true);
+    expect(state.full).toBeUndefined();
+    state = keyManager.match(keyEvent2);
+    expect(state.partial).toBe(true);
+    expect(state.full).toBeUndefined();
+    state = keyManager.match(keyEvent3);
+    expect(state.full).toBeDefined();
+    expect(state.partial).toBe(false);
+  });
+  it("can match a command binding with multiple sequences with overlapped bindings", async () => {
+    const keyEvent1 = new KeyboardEvent("keydown", { ctrlKey: true, key: "s" });
+    const keyEvent2 = new KeyboardEvent("keydown", { altKey: true, key: "d" });
+    const keyEvent3 = new KeyboardEvent("keydown", { altKey: true, key: "x" });
+
+    const command1 = commandRegistry.registerCommand(
+      "fo.test.command1",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command1).toBeDefined();
+    const command2 = commandRegistry.registerCommand(
+      "fo.test.command2",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command2).toBeDefined();
+    //The start sequence ctrl+s is the same for both commands, one is User the other Core
+    expect(() => {
+      keyManager.bindKey("ctrl+s, alt+d", "fo.test.command1");
+    }).not.toThrow();
+    expect(() => {
+      keyManager.bindKey("ctrl+s, alt+x", "fo.test.command2");
+    }).not.toThrow();
+    let state = keyManager.match(keyEvent1);
+    expect(state.partial).toBe(true);
+    expect(state.full).toBeUndefined();
+    state = keyManager.match(keyEvent2);
+    expect(state.full).toBeDefined();
+    expect(state.partial).toBe(false);
+    //The command is matched, make sure it has cleared the first match and cannot invoke the 2nd command
+    state = keyManager.match(keyEvent3);
+    expect(state.partial).toBe(false);
+    expect(state.full).toBeUndefined();
+  });
+
+  it("properly terminates a key sequence", async () => {
+    //full sequence:
+    //ctrl+s, q, alt+d, q, ctrl+s, alt+d (fires command)
+    const keyEvent1 = new KeyboardEvent("keydown", { ctrlKey: true, key: "s" });
+    const keyEvent2 = new KeyboardEvent("keydown", { altKey: true, key: "d" });
+    const badEvent = new KeyboardEvent("keydown", { key: "q" });
+    const command = commandRegistry.registerCommand(
+      "fo.test.command",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command).toBeDefined();
+    expect(() => {
+      keyManager.bindKey("ctrl+s, alt+d", "fo.test.command");
+    }).not.toThrow();
+    //first event matches ctrl+s
+    let state = keyManager.match(keyEvent1);
+    expect(state.partial).toBe(true);
+    expect(state.full).toBeUndefined();
+    //send a non-matching event
+    state = keyManager.match(badEvent);
+    expect(state.partial).toBe(false);
+    expect(state.full).toBeUndefined();
+    //now send the 2nd part of the sequence alt+d, should not match
+    state = keyManager.match(keyEvent2);
+    //make sure it is not invoked
+    expect(state.partial).toBe(false);
+    expect(state.full).toBeUndefined();
+    //send the matching sequence and make sure it fires
+    state = keyManager.match(keyEvent1);
+    expect(state.partial).toBe(true);
+    expect(state.full).toBeUndefined();
+    state = keyManager.match(keyEvent2);
+    expect(state.partial).toBe(false);
+    expect(state.full).toBeDefined();
+  });
+
+  it("matches the earliest enabled command for duplicate bindings", async () => {
+    const command1 = commandRegistry.registerCommand(
+      "fo.test.command1",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    expect(command1).toBeDefined();
+    const command2 = commandRegistry.registerCommand(
+      "fo.test.command2",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    const binding = "ctrl+s, alt+d";
+    expect(() => {
+      keyManager.bindKey(binding, "fo.test.command1");
+    }).not.toThrow();
+    expect(() => {
+      keyManager.bindKey(binding, "fo.test.command2");
+    }).not.toThrow();
+    expect(command2).toBeDefined();
+
+    let state = keyManager.match(
+      new KeyboardEvent("keydown", { ctrlKey: true, key: "s" }),
+    );
+    expect(state.partial).toBe(true);
+    state = keyManager.match(
+      new KeyboardEvent("keydown", { altKey: true, key: "d" }),
+    );
+    expect(state.full?.id).toBe("fo.test.command1");
+  });
+
+  it("falls back to an older duplicate binding when the latest is disabled", async () => {
+    commandRegistry.registerCommand(
+      "fo.test.command1",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    commandRegistry.registerCommand(
+      "fo.test.command2",
+      async () => {
+        return;
+      },
+      () => {
+        return false;
+      },
+    );
+
+    keyManager.bindKey("s", "fo.test.command1");
+    keyManager.bindKey("s", "fo.test.command2");
+
+    const state = keyManager.match(new KeyboardEvent("keydown", { key: "s" }));
+    expect(state.full?.id).toBe("fo.test.command1");
+  });
+
+  it("matches the highest-priority enabled duplicate binding", async () => {
+    commandRegistry.registerCommand(
+      "fo.test.command1",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    commandRegistry.registerCommand(
+      "fo.test.command2",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+
+    keyManager.bindKey("s", "fo.test.command1", 100);
+    keyManager.bindKey("s", "fo.test.command2");
+
+    const state = keyManager.match(new KeyboardEvent("keydown", { key: "s" }));
+    expect(state.full?.id).toBe("fo.test.command1");
+  });
+
+  /**
+   * The "ladder" a surface builds on a shared key: a high-priority rung that
+   * only applies sometimes, over a default that always does. Video Explore
+   * binds Escape this way — clear the selected labels when there are any,
+   * otherwise let the modal's own Escape close it — which only works if a
+   * DISABLED high-priority rung falls through instead of swallowing the key.
+   */
+  it("falls through a disabled high-priority binding to the enabled default", async () => {
+    let rungApplies = false;
+
+    commandRegistry.registerCommand(
+      "fo.test.rung",
+      async () => {
+        return;
+      },
+      () => rungApplies,
+    );
+    commandRegistry.registerCommand(
+      "fo.test.default",
+      async () => {
+        return;
+      },
+      () => true,
+    );
+
+    keyManager.bindKey("Escape", "fo.test.rung", 1);
+    keyManager.bindKey("Escape", "fo.test.default");
+
+    const press = () =>
+      keyManager.match(new KeyboardEvent("keydown", { key: "Escape" })).full
+        ?.id;
+
+    // rung does not apply -> the default runs untouched
+    expect(press()).toBe("fo.test.default");
+
+    rungApplies = true;
+
+    // rung applies -> it takes the key, and the default does NOT also run
+    expect(press()).toBe("fo.test.rung");
+  });
+
+  /**
+   * The same ladder, bound in PRODUCTION order.
+   *
+   * Every priority test above registers the high-priority rung FIRST, so an
+   * implementation that merely preferred the earliest binding would satisfy
+   * them. Video Explore is the other way round: `ModalClose` binds Escape at
+   * modal mount, and the clear-selection rung re-registers on every selection
+   * change — so the rung is always the LATER registration. Bind them in that
+   * order here, so priority has to be what decides.
+   */
+  it("prefers the higher priority even when it is bound LAST", async () => {
+    let rungApplies = true;
+
+    commandRegistry.registerCommand(
+      "fo.test.default",
+      async () => {
+        return;
+      },
+      () => true,
+    );
+    commandRegistry.registerCommand(
+      "fo.test.rung",
+      async () => {
+        return;
+      },
+      () => rungApplies,
+    );
+
+    // production order: the always-on default first, the rung after
+    keyManager.bindKey("Escape", "fo.test.default");
+    keyManager.bindKey("Escape", "fo.test.rung", 1);
+
+    const press = () =>
+      keyManager.match(new KeyboardEvent("keydown", { key: "Escape" })).full
+        ?.id;
+
+    expect(press()).toBe("fo.test.rung");
+
+    // and it still falls through when the rung stops applying — the half that
+    // keeps Escape able to close the modal once the selection is cleared
+    rungApplies = false;
+    expect(press()).toBe("fo.test.default");
+  });
+
+  it("can unbind one duplicate binding without removing the fallback", async () => {
+    commandRegistry.registerCommand(
+      "fo.test.command1",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+    commandRegistry.registerCommand(
+      "fo.test.command2",
+      async () => {
+        return;
+      },
+      () => {
+        return true;
+      },
+    );
+
+    keyManager.bindKey("s", "fo.test.command1");
+    keyManager.bindKey("s", "fo.test.command2");
+    keyManager.unbindKey("s", "fo.test.command2");
+
+    const state = keyManager.match(new KeyboardEvent("keydown", { key: "s" }));
+    expect(state.full?.id).toBe("fo.test.command1");
+  });
+});

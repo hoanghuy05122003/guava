@@ -1,0 +1,63 @@
+import type { SchemaType } from "@fiftyone/core/src/plugins/SchemaIO/utils/types";
+import type { FormProps } from "@rjsf/core";
+import type { RJSFSchema, UiSchema } from "@rjsf/utils";
+
+export enum SmartFormInputs {
+  String = "string",
+  Number = "number",
+  Integer = "integer",
+  Boolean = "boolean",
+  Null = "null",
+  Object = "object",
+  Array = "array",
+  OneOf = "oneOf",
+}
+
+export enum SmartFormComponents {
+  FieldView = "FieldView",
+  CheckboxView = "CheckboxView",
+  DropdownView = "DropdownView",
+  Dropdown = "Dropdown",
+  SelectWidget = "SelectWidget",
+  RadioView = "RadioView",
+  RadioGroup = "RadioGroup",
+  CheckboxesView = "CheckboxesView",
+  AutocompleteView = "AutocompleteView",
+  ColorView = "ColorView",
+  CodeView = "CodeView",
+  JSONView = "JSONView",
+  FileView = "FileView",
+  TabsView = "TabsView",
+  ObjectView = "ObjectView",
+  GridView = "GridView",
+  ListView = "ListView",
+  TupleView = "TupleView",
+  MapView = "MapView",
+  OneOfView = "OneOfView",
+  ProgressView = "ProgressView",
+  LinkView = "LinkView",
+  DashboardView = "DashboardView",
+  FileExplorerView = "FileExplorerView",
+  LazyFieldView = "LazyFieldView",
+  MenuView = "MenuView",
+  ButtonView = "ButtonView",
+  NoticeView = "NoticeView",
+  MarkdownView = "MarkdownView",
+  PlotlyView = "PlotlyView",
+  SliderView = "SliderView",
+  ToggleView = "ToggleView",
+  LabelValueView = "LabelValueView",
+  DatePickerView = "DatePickerView",
+  JsonEditorView = "JsonEditorView",
+  TaxonomyView = "TaxonomyView",
+}
+
+export interface SmartFormProps {
+  schema?: SchemaType;
+  jsonSchema?: RJSFSchema;
+  uiSchema?: UiSchema;
+  data?: unknown;
+  onChange?: (data: unknown) => void;
+  onSubmit?: (data: unknown) => void;
+  formProps?: Partial<FormProps>;
+}

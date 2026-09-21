@@ -1,0 +1,7 @@
+# require these paths to pass linting
+# for PRs to be merge-able
+packages/operators
+packages/app
+packages/view-bar
+packages/spotlight
+packages/looker-3d

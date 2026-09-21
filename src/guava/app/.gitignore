@@ -1,0 +1,16 @@
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.yarnrc
+coverage
+node_modules
+.snowpack
+build
+dist
+docs.json
+tsconfig.tsbuildinfo
+yarn-error.log
+storybook-static/

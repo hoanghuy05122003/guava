@@ -440,6 +440,8 @@ input[type=range] {
   display: grid;
   gap: 16px;
   align-content: start;
+  /* overflow:hidden cards have ~0 min height; without this, rows shrink to fit the viewport */
+  grid-auto-rows: max-content;
 }
 
 .grid-medium {

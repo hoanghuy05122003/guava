@@ -1,19 +1,16 @@
-"""Guava transforms subpackage."""
-
+"""
+Guava Transforms & Validation Package.
+"""
 from guava.transforms.api import (
     filter_dataset,
     merge_datasets,
-    rename_labels,
-    remap_labels,
     split_dataset,
     validate_dataset,
 )
 
 __all__ = [
+    "split_dataset",
     "filter_dataset",
     "merge_datasets",
-    "split_dataset",
     "validate_dataset",
-    "rename_labels",
-    "remap_labels",
 ]

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍈 Guava Studio — Unified Dataset Management & AI Visualization</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍈</text></svg>">
+  <link rel="stylesheet" href="/web/app.css">
+</head>
+<body>
+  <!-- Guava Top Header -->
+  <header id="guava-header">
+    <div class="header-left">
+      <div class="brand" onclick="location.reload()" title="Reload Guava Studio">
+        <span class="brand-icon">🍈</span>
+        <span class="brand-title">GUAVA STUDIO</span>
+        <span class="brand-badge">v1.0.0</span>
+      </div>
+      <div class="dataset-selector" id="dataset-info-pill" onclick="openModal('load-dataset')" style="cursor:pointer;" title="Click to switch or load dataset">
+        <span class="ds-dot"></span>
+        <span id="ds-name">Loading...</span>
+        <span class="ds-count" id="ds-count-badge">0 samples</span>
+        <span style="font-size:10px; color:#38bdf8; margin-left:4px;">▼ Switch</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="nav-btn highlight" onclick="openModal('load-dataset')">
+        <span class="btn-icon">📂</span> Load Dataset
+      </button>
+      <button class="nav-btn highlight-model" onclick="openModal('model')">
+        <span class="btn-icon">🤖</span> Run Model
+      </button>
+      <button class="nav-btn" onclick="openModal('eval')">
+        <span class="btn-icon">📈</span> Evaluate
+      </button>
+      <button class="nav-btn" onclick="document.getElementById('quick-file-input').click()" title="Pick or drag & drop images anywhere">
+        <span class="btn-icon">⚡</span> Quick Check
+      </button>
+      <button class="nav-btn" onclick="saveWorkspace()" title="Save dataset + predictions + tags to a .guava.json workspace">
+        <span class="btn-icon">💾</span> Save
+      </button>
+      <button class="nav-btn" onclick="openModal('converter')">
+        <span class="btn-icon">🔄</span> Convert & Export
+      </button>
+      <button class="nav-btn" onclick="openModal('validator')">
+        <span class="btn-icon">📊</span> Quality Audit
+      </button>
+      <button class="nav-btn" onclick="openModal('brain')">
+        <span class="btn-icon">🧠</span> Brain AI Studio
+      </button>
+      <button class="nav-btn" onclick="openModal('formats')">
+        <span class="btn-icon">📁</span> Formats
+      </button>
+      <button class="nav-btn" onclick="openModal('sdk')">
+        <span class="btn-icon">💻</span> SDK
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div id="guava-app">
+    <!-- Left Filter Sidebar -->
+    <aside id="guava-sidebar">
+      <!-- Search Box -->
+      <div class="sidebar-section">
+        <div class="section-title">
+          <span>Search & Filter</span>
+          <button class="reset-filter-btn" id="reset-filters-btn" title="Reset all filters">Reset</button>
+        </div>
+        <div class="search-box">
+          <input type="text" id="sample-search" placeholder="Search ID, label, tag...">
+        </div>
+      </div>
+
+      <!-- Sort By -->
+      <div class="sidebar-section">
+        <div class="section-header">Sort By</div>
+        <select id="sort-select" class="guava-select" onchange="onSortChange(this.value)">
+          <option value="default">Default Order</option>
+          <option value="annotations_desc">Most Annotations</option>
+          <option value="annotations_asc">Least Annotations</option>
+          <option value="conf_asc">Lowest Confidence (Inspect Errors)</option>
+          <option value="conf_desc">Highest Confidence</option>
+          <option value="uniqueness_desc">Highest Uniqueness (Outliers)</option>
+          <option value="uniqueness_asc">Most Redundant</option>
+          <option value="id_asc">Sample ID (A-Z)</option>
+          <option value="errors_desc">Most model errors (FP+FN)</option>
+          <option value="fp_desc">Most false positives</option>
+          <option value="fn_desc">Most missed (FN)</option>
+          <option value="preds_desc">Most predictions</option>
+          <option value="min_conf_asc">Least confident prediction</option>
+          <option value="infer_ms_desc">Slowest inference</option>
+        </select>
+      </div>
+
+      <!-- Model evaluation quick filters (shown once predictions exist) -->
+      <div class="sidebar-section" id="eval-filter-section" style="display:none;">
+        <div class="section-header">
+          <span>Model Results</span>
+          <span class="cat-count-sub" id="eval-model-name"></span>
+        </div>
+        <div id="eval-filters-container" class="filter-list"></div>
+        <label class="inline-check" style="margin-top:6px;"><input type="checkbox" id="only-errors-toggle" onchange="toggleOnlyErrors(this.checked)"> Draw only FP / FN boxes</label>
+      </div>
+
+      <!-- Model vs model (shown once 2+ models have results) -->
+      <div class="sidebar-section" id="compare-filter-section" style="display:none;">
+        <div class="section-header"><span>Compare Models</span></div>
+        <div id="compare-filters-container" class="filter-list"></div>
+      </div>
+
+      <!-- Layer Toggles -->
+      <div class="sidebar-section">
+        <div class="section-header">Annotation Layers</div>
+        <div class="layer-item">
+          <label class="checkbox-container">
+            <input type="checkbox" id="layer-gt" checked>
+            <span class="checkmark gt-check"></span>
+            <span class="layer-label">Ground Truth</span>
+          </label>
+          <span class="layer-badge gt-badge" id="count-gt">0</span>
+        </div>
+        <div class="layer-item">
+          <label class="checkbox-container">
+            <input type="checkbox" id="layer-pred" checked>
+            <span class="checkmark pred-check"></span>
+            <span class="layer-label">Predictions</span>
+          </label>
+          <span class="layer-badge pred-badge" id="count-pred">0</span>
+        </div>
+        <!-- one row per model run: show/hide, ★ = model used for filters & GT status -->
+        <div id="model-layers" class="model-layers"></div>
+      </div>
+
+      <!-- Subsets Filter -->
+      <div class="sidebar-section">
+        <div class="section-header">Subsets</div>
+        <div id="subsets-container" class="filter-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Tags Filter -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <span>Tags</span>
+          <span class="cat-count-sub" id="tag-total-count">0</span>
+        </div>
+        <div id="tags-container" class="filter-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Categories / Classes Filter -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <span>Categories</span>
+          <span class="cat-count-sub" id="cat-total-count">0</span>
+        </div>
+        <div id="categories-container" class="filter-list categories-scroll">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Confidence Slider -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <span>Min Confidence</span>
+          <span id="confidence-val">0.00</span>
+        </div>
+        <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0">
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="guava-main">
+      <!-- Active Filters Bar (Hidden when empty) -->
+      <div id="active-filters-bar" class="active-filters-bar" style="display:none;"></div>
+
+      <!-- Toolbar Strip -->
+      <div id="view-toolbar">
+        <div class="toolbar-left">
+          <label class="checkbox-container" style="display:inline-flex; align-items:center; gap:6px; margin-right:12px;">
+            <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this.checked)">
+            <span style="font-size:12px; color:var(--text-muted); cursor:pointer;">Select All</span>
+          </label>
+          <span class="status-text">Showing <strong id="displayed-count">0</strong> of <strong id="total-samples-count">0</strong> samples</span>
+        </div>
+        <div class="toolbar-right">
+          <div class="grid-size-controls">
+            <span class="size-label">Size:</span>
+            <button class="size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
+            <button class="size-btn" data-size="large" onclick="setGridSize('large')">L</button>
+          </div>
+          <button class="toggle-btn" id="toggle-labels-btn" onclick="toggleLabels()">Labels: ON</button>
+        </div>
+      </div>
+
+      <!-- Samples Grid -->
+      <div id="samples-grid" class="grid-medium">
+        <div class="loading-state" id="grid-loading">
+          <div class="spinner"></div>
+          <p>Loading samples & annotations from Guava engine...</p>
+        </div>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div id="grid-pagination">
+        <button class="page-btn" id="prev-page-btn" onclick="changePage(-1)">&larr; Previous</button>
+        <span class="page-info" id="page-info">Page 1</span>
+        <button class="page-btn" id="next-page-btn" onclick="changePage(1)">Next &rarr;</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating Selection Action Bar -->
+  <div id="selection-bar" class="selection-action-bar" style="display:none;">
+    <div class="selection-info"><span id="selected-count-badge">0</span> samples selected</div>
+    <div class="selection-buttons">
+      <button class="action-btn" onclick="openBatchTagPrompt()">🏷️ Add Tag</button>
+      <button class="action-btn danger" onclick="batchDeleteSelected()">🗑️ Delete</button>
+      <button class="action-btn primary" onclick="openExportSelected()">🔄 Export Selected</button>
+      <button class="action-btn" onclick="clearSelection()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal (Deep Sample Inspection & Editing) -->
+  <div id="lightbox-modal" class="modal-backdrop">
+    <div class="lightbox-container">
+      <div class="lightbox-header">
+        <div class="lightbox-info">
+          <span class="lb-title" id="lb-sample-id">Sample Detail</span>
+          <span class="lb-dim" id="lb-sample-dim">640x480</span>
+          <span class="lb-subset" id="lb-sample-subset">val</span>
+        </div>
+        <div class="lightbox-actions">
+          <button class="icon-btn" onclick="zoomCanvas(1.25)" title="Zoom In">+</button>
+          <button class="icon-btn" onclick="zoomCanvas(0.8)" title="Zoom Out">&minus;</button>
+          <button class="icon-btn" onclick="resetZoom()" title="Reset Zoom">100%</button>
+          <button class="icon-btn close" onclick="closeLightbox()">&times;</button>
+        </div>
+      </div>
+
+      <div class="lightbox-body">
+        <div class="lightbox-canvas-wrapper" id="canvas-wrapper">
+          <canvas id="lightbox-canvas"></canvas>
+        </div>
+
+        <div class="lightbox-sidebar">
+          <div class="lb-actions-bar">
+            <button class="lb-action-btn" onclick="findSimilarToCurrentSample()" title="Find similar images across dataset">🔍 Find Similar</button>
+            <button class="lb-action-btn" onclick="addTagToCurrentSample()" title="Add tag to this sample">🏷️ Tag</button>
+            <button class="lb-action-btn" style="color:#ef4444;" onclick="deleteCurrentSample()" title="Delete this sample">🗑️ Delete</button>
+          </div>
+
+          <h3>Annotations Inspector</h3>
+          <div class="lb-stats-summary" id="lb-ann-count">0 Detections</div>
+          <div class="lb-annotations-list" id="lb-annotations-list">
+            <!-- Populated dynamically with editable labels and delete buttons -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📂 Load Dataset Modal -->
+  <div id="modal-load-dataset" class="modal-backdrop">
+    <div class="modal-box large">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">📂</span>
+          <h2>Load Computer Vision Dataset</h2>
+        </div>
+        <button class="modal-close" onclick="closeModal('load-dataset')">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: calc(85vh - 130px); overflow-y: auto; padding: 20px;">
+        <!-- Section 1: Discovered datasets on machine -->
+        <div class="discovered-section" style="margin-bottom: 20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div>
+              <h3 style="font-size:13px; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px; margin:0;">
+                <span>⚡</span> Discovered Datasets on Disk (1-Click Load)
+              </h3>
+              <p style="font-size:11px; color:var(--text-muted); margin:2px 0 0 0;">
+                Auto-scanned from your machine (D:\data). Click <b>⚡ Load</b> to switch instantly.
+              </p>
+            </div>
+            <input type="text" id="discovered-search-input" placeholder="🔍 Filter list..." 
+                   oninput="filterDiscoveredDatasets(this.value)" 
+                   style="width:160px; padding:4px 8px; font-size:12px; background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:6px; color:var(--text-main);">
+          </div>
+
+          <div id="discovered-datasets-container" style="max-height:220px; overflow-y:auto; border:1px solid var(--border-subtle); border-radius:8px; background:rgba(0,0,0,0.25); padding:6px; display:flex; flex-direction:column; gap:6px;">
+            <div style="padding:16px; text-align:center; color:var(--text-muted); font-size:13px;">
+              <span class="spinner" style="display:inline-block; width:16px; height:16px; vertical-align:middle; margin-right:8px;"></span>
+              Scanning disks for computer vision datasets...
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Quick Presets -->
+        <div style="margin-bottom: 20px;">
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+            Quick Shortcuts:
+          </label>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button class="quick-preset-btn" onclick="quickLoadPreset('D:\\data\\Wits\\coils_v1', 'yolo')">
+              📦 Wits / coils_v1 (392 samples, YOLO)
+            </button>
+            <button class="quick-preset-btn" onclick="quickLoadPreset('D:\\data\\Wits\\Wits_bottom_check.v6i.yolo26', 'yolo')">
+              📦 Wits_bottom_check (393 samples, YOLO)
+            </button>
+            <button class="quick-preset-btn" onclick="quickLoadPreset('D:\\data\\Endplate\\plate_04_split', 'yolo')">
+              📦 Endplate / plate_04_split (122 samples, YOLO)
+            </button>
+            <button class="quick-preset-btn" onclick="quickLoadPreset('demo', 'demo')">
+              🚗 Demo Street Scenes (24 samples)
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 3: Manual Path / Custom Folder -->
+        <div style="border-top:1px solid var(--border-subtle); padding-top:16px;">
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="margin-bottom:0; font-weight:600; font-size:12px;">Custom Dataset Path (folder or file):</label>
+              <button type="button" onclick="openFolderBrowser()" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer;">
+                📂 Browse Folder...
+              </button>
+            </div>
+            <input type="text" id="load-dataset-path" value="D:\data\Wits\coils_v1" placeholder="D:\data\Wits\coils_v1" style="width:100%;">
+          </div>
+          <div class="form-group">
+            <label>Format:</label>
+            <select id="load-dataset-format">
+              <option value="">Auto-Detect Format (Recommended)</option>
+              <option value="yolo" selected>YOLO (data.yaml, labels/, classes.txt)</option>
+              <option value="coco">COCO (instances JSON)</option>
+              <option value="voc">Pascal VOC (XML Annotations/)</option>
+              <option value="imagefolder">ImageFolder / Directory</option>
+              <option value="guava">Guava Manifest (.json)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="load-dataset-status" style="margin-top:10px; font-size:13px; min-height:22px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" onclick="closeModal('load-dataset')">Cancel</button>
+        <button class="primary-btn" id="btn-load-dataset-submit" onclick="executeLoadDataset()" style="padding:8px 20px; font-weight:600;">⚡ Load into Studio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📂 Interactive Folder Browser Modal -->
+  <div id="modal-folder-browser" class="modal-backdrop">
+    <div class="modal-box large">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">📂</span>
+          <h2>Select Dataset Directory</h2>
+        </div>
+        <button class="modal-close" onclick="closeModal('folder-browser')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:16px;">
+        <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+          <button class="secondary-btn" onclick="browseUpDirectory()" style="padding:5px 12px; font-size:12px;" title="Go to parent directory">⬆️ Up</button>
+          <input type="text" id="browser-current-path" readonly style="flex:1; font-family:monospace; font-size:12px; background:var(--bg-base); border:1px solid var(--border-subtle); padding:6px 10px; border-radius:6px; color:#38bdf8;">
+          <button class="primary-btn" onclick="selectCurrentBrowserFolder()" style="padding:5px 14px; font-size:12px; font-weight:600;">✅ Select This Folder</button>
+        </div>
+        <div id="browser-items-list" style="height:320px; overflow-y:auto; border:1px solid var(--border-subtle); border-radius:8px; background:rgba(0,0,0,0.25); padding:6px;">
+          <!-- dynamic folder items -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" onclick="closeModal('folder-browser')">Cancel</button>
+        <button class="primary-btn" onclick="selectCurrentBrowserFolder()">Select This Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔄 Format Converter Modal -->
+  <div id="modal-converter" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>🔄 1-Click Dataset Format Converter (Guava I/O)</h2>
+        <button class="modal-close" onclick="closeModal('converter')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Convert active dataset to standard Computer Vision formats:</p>
+        <div class="form-group">
+          <label>Target Format:</label>
+          <select id="convert-target-fmt">
+            <option value="yolo">YOLO (Ultralytics v5/v8 labels/ & data.yaml)</option>
+            <option value="coco">COCO (instances JSON)</option>
+            <option value="voc">Pascal VOC (XML Annotations/)</option>
+            <option value="imagefolder">ImageFolder (class subdirectories)</option>
+            <option value="guava">Guava Native JSON Manifest</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Output Directory / File:</label>
+          <input type="text" id="convert-output-dir" placeholder="exported_dataset">
+        </div>
+        <div class="form-group">
+          <label>Export Scope:</label>
+          <select id="convert-scope">
+            <option value="all">All Samples in Dataset</option>
+            <option value="selected">Only Selected Samples (<span id="convert-selected-count">0</span>)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" onclick="closeModal('converter')">Close</button>
+        <button class="primary-btn" onclick="executeConvert()">Run Export</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📊 Quality Validator Modal -->
+  <div id="modal-validator" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>📊 Dataset Quality Audit & Health Check</h2>
+        <button class="modal-close" onclick="closeModal('validator')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Automated quality validation for missing image files, corrupt bboxes, and unannotated samples.</p>
+        <div class="audit-results" id="audit-results-container">
+          <!-- Populated dynamically with clickable issue filters -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="closeModal('validator')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🧠 Brain AI Modal -->
+  <div id="modal-brain" class="modal-backdrop">
+    <div class="modal-box large">
+      <div class="modal-header">
+        <h2>🧠 Guava Brain — AI Curation Studio</h2>
+        <button class="modal-close" onclick="closeModal('brain')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Perceptual image hashing, visual similarity search, duplicate detection, and uniqueness ranking.</p>
+        
+        <!-- Live Duplicate Tool -->
+        <div class="brain-card" style="border-color: #10b981;">
+          <h4>👯 Near-Duplicate Image Detector</h4>
+          <p>Scan dataset using Guava perceptual difference hashing (dHash) and Hamming distance:</p>
+          <div style="display:flex; gap:12px; margin: 10px 0; align-items:center;">
+            <button class="primary-btn" onclick="runLiveDuplicateScan()">Scan Duplicates Now</button>
+            <button class="secondary-btn" id="btn-tag-duplicates" style="display:none;" onclick="tagAllDuplicates()">🏷️ Tag All Duplicates</button>
+            <span id="brain-scan-result" style="color: #94a3b8; font-size: 13px;"></span>
+          </div>
+          <div id="brain-duplicates-list"></div>
+        </div>
+
+        <!-- Uniqueness Tool -->
+        <div class="brain-card">
+          <h4>🌟 Uniqueness & Outlier Ranking</h4>
+          <p>Calculate visual uniqueness scores (0.00 = highly redundant, 1.00 = unique outlier) for all samples:</p>
+          <div style="margin: 10px 0;">
+            <button class="primary-btn" onclick="runComputeUniqueness()">Compute Uniqueness & Sort Grid</button>
+            <span id="uniqueness-result" style="margin-left: 12px; color: #94a3b8; font-size: 13px;"></span>
+          </div>
+        </div>
+
+        <!-- Similarity info -->
+        <div class="brain-card">
+          <h4>🔍 Visual Similarity Search</h4>
+          <p>To find images similar to any sample, click the <strong>🔍 Find Similar</strong> button on any sample card or in the Lightbox view. The studio will reorder all images by similarity.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="closeModal('brain')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📁 Formats Modal -->
+  <div id="modal-formats" class="modal-backdrop">
+    <div class="modal-box large">
+      <div class="modal-header">
+        <h2>📁 Supported Dataset Formats</h2>
+        <button class="modal-close" onclick="closeModal('formats')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Guava supports bidirectional loading, conversion, and validation across Computer Vision formats:</p>
+        <div class="format-chips-grid" id="formats-chips">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="closeModal('formats')">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💻 Python SDK Modal -->
+  <div id="modal-sdk" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>💻 Guava Python SDK</h2>
+        <button class="modal-close" onclick="closeModal('sdk')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <pre><code>import guava as gv
+
+# 1. Load any dataset format
+dataset = gv.load("coco", "path/to/annotations.json")
+
+# 2. Filter & Split
+filtered = dataset.filter(lambda s: len(s.annotations) > 0)
+splits = gv.split_dataset(dataset, splits={"train": 0.8, "val": 0.1, "test": 0.1})
+
+# 3. Format Conversion
+gv.export(dataset, format="yolo", output_dir="output/yolo")
+
+# 4. AI Curation
+dupes = gv.brain.find_near_duplicates(dataset, threshold=5)
+uniqueness = gv.brain.compute_uniqueness(dataset)
+
+# 5. Launch Visual Studio
+session = gv.launch_app(dataset, port=5151)
+session.wait()</code></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="closeModal('sdk')">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 🤖 Model (offline inference) Modal -->
+  <div id="modal-model" class="modal-backdrop">
+    <div class="modal-box large">
+      <div class="modal-header">
+        <h2>🤖 Run Local Model</h2>
+        <button class="modal-close" onclick="closeModal('model')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="system-info" class="sys-info">Checking inference backends…</div>
+
+        <div class="form-group">
+          <label>Model weights (.pt / .onnx / .engine / *_openvino_model)</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="model-path" class="guava-input" placeholder="D:\models\best.pt" style="flex:1;" onchange="inspectModel()">
+            <button class="secondary-btn" onclick="openFolderBrowser('model-path')">📂 Browse</button>
+            <button class="secondary-btn" onclick="inspectModel()">Check</button>
+          </div>
+          <div id="model-inspect" class="model-inspect"></div>
+        </div>
+
+        <details class="model-discover" open>
+          <summary>Models found on this machine <span id="model-found-count" class="cat-count-sub">0</span></summary>
+          <div style="display:flex; gap:8px; margin:8px 0;">
+            <input type="text" id="model-search" class="guava-input" placeholder="Filter by name / folder…" oninput="renderModelList()" style="flex:1;">
+            <input type="text" id="model-scan-dir" class="guava-input" placeholder="Scan another folder…" style="flex:1;">
+            <button class="secondary-btn" onclick="scanModels()">Scan</button>
+          </div>
+          <div id="model-list" class="model-list"></div>
+        </details>
+
+        <div class="model-params">
+          <label style="flex:3;">Mode
+            <select id="model-mode" class="guava-select" onchange="updateModelModeHint()">
+              <option value="eval" selected>Evaluation: keep all boxes (conf 0.001), mAP comparable to ultralytics val</option>
+              <option value="display">Display / deploy: store only boxes ≥ confidence</option>
+            </select>
+          </label>
+          <label style="flex:2;" title="Predictions are stored under this name. Default is derived from the weights path (runs/train194/weights/best.pt → train194/best); a name already used by other weights gets a short sha1 suffix.">Run name (optional)
+            <input type="text" id="model-alias" class="guava-input" placeholder="auto from weights path">
+          </label>
+        </div>
+        <div id="model-mode-hint" class="model-mode-hint"></div>
+
+        <div class="model-params">
+          <label><span id="model-conf-label">Operating conf</span> <input type="number" id="model-conf" class="guava-input" value="0.25" min="0" max="1" step="0.05"></label>
+          <label>NMS IoU <input type="number" id="model-iou" class="guava-input" value="0.45" min="0" max="1" step="0.05"></label>
+          <label>Image size <input type="number" id="model-imgsz" class="guava-input" placeholder="auto" step="32"></label>
+          <label>Device
+            <select id="model-device" class="guava-select">
+              <option value="">auto</option><option value="0">GPU 0</option><option value="cpu">CPU</option>
+            </select>
+          </label>
+          <label>Backend
+            <select id="model-backend" class="guava-select">
+              <option value="auto">auto</option><option value="ultralytics">ultralytics</option><option value="onnxruntime">onnxruntime (.onnx only)</option>
+            </select>
+          </label>
+          <label>Batch <input type="number" id="model-batch" class="guava-input" value="8" min="1" max="128"></label>
+        </div>
+
+        <div class="model-params">
+          <label style="flex:2;">Run on
+            <select id="model-scope" class="guava-select">
+              <option value="all">All samples</option>
+              <option value="filtered">Current filtered view</option>
+              <option value="selected">Selected samples</option>
+              <option value="not_inferred">Samples without predictions</option>
+            </select>
+          </label>
+          <label class="inline-check"><input type="checkbox" id="model-auto-eval" checked> Auto-evaluate vs ground truth</label>
+        </div>
+
+        <div id="job-progress" class="job-progress" style="display:none;">
+          <div class="job-bar"><div id="job-bar-fill"></div></div>
+          <div id="job-text" class="job-text"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn danger" onclick="clearPredictions()">🗑️ Clear predictions</button>
+        <button class="secondary-btn" id="job-cancel-btn" style="display:none;" onclick="cancelJob()">Cancel</button>
+        <button class="primary-btn" id="model-run-btn" onclick="runModel()">▶ Run inference</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📈 Evaluation Modal -->
+  <div id="modal-eval" class="modal-backdrop">
+    <div class="modal-box xlarge">
+      <div class="modal-header">
+        <h2>📈 Model Evaluation — Ground Truth vs Predictions</h2>
+        <button class="modal-close" onclick="closeModal('eval')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+          <label class="eval-param">Match IoU <input type="number" id="eval-iou" class="guava-input" value="0.5" min="0.05" max="0.95" step="0.05"></label>
+          <label class="eval-param" title="P / R / TP / FP / FN and the grid's TP/FP flags use predictions with confidence ≥ this. mAP always uses every stored prediction.">Operating conf <input type="number" id="eval-conf" class="guava-input" value="0.25" min="0" max="1" step="0.05"></label>
+          <label class="eval-param" title="Predictions of classes that have no ground truth anywhere in this dataset are left out instead of counted as false positives."><input type="checkbox" id="eval-ignore-missing"> Ignore classes without GT</label>
+          <label class="eval-param" title="Rename predicted classes before matching: pred=gt, comma separated. An empty target (scratch=) drops that class.">Class map <input type="text" id="eval-class-map" class="guava-input eval-map" placeholder="pred=gt, scratch="></label>
+          <button class="primary-btn" onclick="runEval()">Re-evaluate</button>
+          <span id="eval-status" style="color:var(--text-muted); font-size:12px;"></span>
+        </div>
+        <div class="eval-note">mAP uses every stored box (run the model in <b>Evaluation</b> mode for numbers comparable to <code>ultralytics val</code>); P/R/TP/FP/FN are at the operating conf. All models are evaluated with the same settings.</div>
+        <div id="eval-warnings" class="eval-warnings" style="display:none;"></div>
+        <div id="eval-compare" class="eval-compare" style="display:none;"></div>
+        <div id="eval-qc" class="eval-qc" style="display:none;"></div>
+        <h4 class="eval-h" id="eval-detail-title" style="display:none;"></h4>
+        <div id="eval-overall" class="eval-cards"></div>
+        <div class="eval-actions">
+          <button class="secondary-btn" onclick="filterEval('eval_error')">⚠️ Show images with errors</button>
+          <button class="secondary-btn" onclick="filterEval('eval_fp')">🟥 False positives</button>
+          <button class="secondary-btn" onclick="filterEval('eval_fn')">🟪 Missed (FN)</button>
+          <button class="secondary-btn" onclick="tagEvalErrors()">🏷️ Tag error images as "review"</button>
+        </div>
+        <div class="eval-split">
+          <div>
+            <h4 class="eval-h">Per-class metrics</h4>
+            <div id="eval-classes"></div>
+          </div>
+          <div>
+            <h4 class="eval-h">Confusion matrix <span style="font-weight:400; color:var(--text-muted);">(rows = GT, cols = prediction · click a cell to see images)</span></h4>
+            <div id="eval-confusion" class="cm-wrap"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚡ Quick Check drop overlay -->
+  <div id="drop-overlay">
+    <div class="drop-box">
+      <div style="font-size:48px;">⚡</div>
+      <h2>Drop images to quick-check</h2>
+      <p>Images are copied to ~/.guava/quick and run through the current model.</p>
+    </div>
+  </div>
+  <input type="file" id="quick-file-input" accept="image/*" multiple style="display:none;" onchange="quickCheckFiles(this.files); this.value='';">
+  <script src="/web/app.js"></script>
+  <script src="/web/model.js"></script>
+  <script src="/web/qc.js"></script>
+</body>
+</html>

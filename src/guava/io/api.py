@@ -1,28 +1,40 @@
 """
-Guava I/O API
+Guava Native I/O API.
 
-High-level functions for loading and exporting datasets using
-Datumaro's format engine (50+ supported formats).
+High-level functions for loading and exporting datasets across standard formats:
+- COCO (instances JSON)
+- YOLO (v5, v8, ultralytics normalized format)
+- Pascal VOC (XML format)
+- ImageFolder / Directory
+- Guava Native Manifest (.guava / JSON)
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
-__all__ = ["load", "export", "detect_format", "list_formats"]
+from guava.core.dataset import Dataset
+from guava.io.coco import export_coco, load_coco
+from guava.io.imagefolder import export_imagefolder, load_imagefolder
+from guava.io.voc import export_voc, load_voc
+from guava.io.yolo import export_yolo, load_yolo
 
-# Mapping of friendly format aliases → Datumaro format names
+__all__ = ["load", "export", "detect_format", "list_formats", "FORMAT_ALIASES"]
+
+# Complete format aliases dictionary
 FORMAT_ALIASES: dict[str, str] = {
-    # Datumaro native
     "coco": "coco_instances",
+    "coco_instances": "coco_instances",
     "coco_detection": "coco_instances",
     "coco_segmentation": "coco_panoptic",
     "coco_keypoints": "coco_person_keypoints",
     "coco_captions": "coco_captions",
     "yolo": "yolo_ultralytics",
-    "yolo_v8": "yolo_ultralytics",
+    "yolov5": "yolo_ultralytics",
     "yolov8": "yolo_ultralytics",
-    "yolo_v5": "yolo",
+    "yolo_v8": "yolo_ultralytics",
+    "yolo_v5": "yolo_ultralytics",
     "voc": "voc",
     "pascal_voc": "voc",
     "cvat": "cvat",
@@ -34,6 +46,7 @@ FORMAT_ALIASES: dict[str, str] = {
     "mnist": "mnist",
     "cifar10": "cifar",
     "cifar100": "cifar",
+    "cifar": "cifar",
     "lfw": "lfw",
     "open_images": "open_images",
     "roboflow": "roboflow",
@@ -45,153 +58,158 @@ FORMAT_ALIASES: dict[str, str] = {
     "mpii": "mpii",
     "widerface": "wider_face",
     "dota": "dota",
-    "image_dir": "image_dir",
-    "images": "image_dir",
-    "arrow": "arrow",
+    "imagefolder": "imagefolder",
+    "image_dir": "imagefolder",
+    "images": "imagefolder",
+    "guava": "guava_native",
 }
+
+
+def list_formats() -> list[str]:
+    """Return list of all supported formats and aliases."""
+    return sorted(list(FORMAT_ALIASES.keys()))
+
+
+def detect_format(path: str | Path) -> str:
+    """
+    Auto-detect dataset format based on file extension and directory contents.
+    """
+    p = str(path)
+    if os.path.isfile(p):
+        if p.endswith(".guava.json"):
+            return "guava"
+        if p.endswith(".json"):
+            return "coco"
+        elif p.endswith(".xml"):
+            return "voc"
+        elif p.endswith(".yaml") or p.endswith(".yml"):
+            return "yolo"
+        elif p.endswith(".txt"):
+            return "yolo"
+        return "coco"
+
+    if os.path.isdir(p):
+        # Look for YOLO
+        if (
+            os.path.exists(os.path.join(p, "labels"))
+            or os.path.exists(os.path.join(p, "data.yaml"))
+            or os.path.exists(os.path.join(p, "classes.txt"))
+            or os.path.exists(os.path.join(p, "train", "labels"))
+            or os.path.exists(os.path.join(p, "train", "images"))
+        ):
+            return "yolo"
+        if os.path.exists(os.path.join(p, "Annotations")):
+            return "voc"
+        if any(f.endswith(".json") and "annotation" in f.lower() for f in os.listdir(p) if os.path.isfile(os.path.join(p, f))):
+            return "coco"
+        if any(f.endswith(".json") for f in os.listdir(p) if os.path.isfile(os.path.join(p, f))):
+            return "coco"
+        return "imagefolder"
+
+    return "coco"
 
 
 def load(
     format: str,
     path: str | Path,
     *,
-    subset: str | None = None,
+    subset: str = "default",
     name: str | None = None,
     **kwargs: Any,
-) -> Any:
+) -> Dataset:
     """
-    Load a dataset from disk using the specified format.
+    Load a dataset from disk in the specified format.
 
-    Wraps Datumaro's format detection and reading engine.
-
-    Args:
-        format: Dataset format. See ``guava.io.list_formats()`` for all options.
-            Aliases like 'yolo', 'coco', 'voc' are supported.
-        path: Path to the dataset directory or file.
-        subset: Optional subset to load ('train', 'val', 'test').
-        name: Optional name for the dataset.
-        **kwargs: Additional arguments passed to the format reader.
-
-    Returns:
-        A :class:`guava.core.dataset.Dataset` object.
-
-    Examples::
-
-        import guava as gv
-
-        # Load COCO dataset
-        ds = gv.load("coco", "/path/to/coco")
-
-        # Load YOLO dataset, train split only
-        ds = gv.load("yolo", "/path/to/yolo", subset="train")
-
-        # Load a folder of images
-        ds = gv.load("images", "/path/to/images")
+    Supported formats:
+      - 'coco': COCO instances JSON file (or dir with image_dir=...)
+      - 'yolo': YOLO directory with data.yaml/classes.txt and labels/
+      - 'voc': Pascal VOC directory with Annotations/ and JPEGImages/
+      - 'imagefolder' / 'images': Folder of images (optionally subfolders per class)
+      - 'guava': Native JSON manifest
     """
-    from guava.core.guava_dataset import GuavaDataset
+    p = str(path)
+    fmt = format.lower()
+    canonical = FORMAT_ALIASES.get(fmt, fmt)
 
-    fmt = FORMAT_ALIASES.get(format.lower(), format)
-    path = Path(path)
+    if "coco" in canonical:
+        if os.path.isdir(p):
+            # Find json file in directory
+            json_files = [f for f in os.listdir(p) if f.endswith(".json")]
+            json_path = os.path.join(p, json_files[0]) if json_files else p
+            img_dir = kwargs.get("image_dir", p)
+        else:
+            json_path = p
+            img_dir = kwargs.get("image_dir", os.path.dirname(p))
+        ds = load_coco(json_path, image_dir=img_dir, subset=subset)
 
-    try:
-        from datumaro.components.dataset import Dataset as DatumDataset
-        datum_ds = DatumDataset.import_from(str(path), fmt, **kwargs)
-    except ImportError:
-        raise ImportError("Datumaro is required. Install with: pip install datumaro")
-    except Exception as e:
-        raise ValueError(
-            f"Failed to load dataset from {path!r} in format {fmt!r}: {e}\n"
-            f"Available formats: {', '.join(sorted(FORMAT_ALIASES))}"
-        ) from e
+    elif "yolo" in canonical:
+        ds = load_yolo(p, classes_file=kwargs.get("classes_file"))
 
-    ds = GuavaDataset.from_datumaro(datum_ds, name=name or path.name)
-    ds._format = fmt
+    elif "voc" in canonical:
+        ann_dir = os.path.join(p, "Annotations") if os.path.isdir(os.path.join(p, "Annotations")) else p
+        img_dir = os.path.join(p, "JPEGImages") if os.path.isdir(os.path.join(p, "JPEGImages")) else kwargs.get("image_dir")
+        ds = load_voc(ann_dir, images_dir=img_dir, subset=subset)
 
-    if subset is not None:
-        ds = ds.filter(lambda item: getattr(item, "subset", "") == subset)
+    elif canonical in ("imagefolder", "image_dir", "images"):
+        ds = load_imagefolder(p)
 
+    elif canonical == "guava_native":
+        ds = Dataset.load_manifest(p)
+
+    else:
+        # Fallback to imagefolder if directory
+        if os.path.isdir(p):
+            ds = load_imagefolder(p)
+        else:
+            raise ValueError(f"Unsupported dataset format: {format!r}")
+
+    if name:
+        ds.name = name
     return ds
 
 
 def export(
-    dataset: Any,
+    dataset: Dataset,
     format: str,
     output_dir: str | Path,
-    *,
-    save_media: bool = False,
     **kwargs: Any,
 ) -> None:
     """
-    Export a dataset to the specified format.
+    Export a Guava Dataset to the specified format.
 
-    Uses Datumaro's export engine to write in any of the 50+ supported formats.
-
-    Args:
-        dataset: A Guava Dataset to export.
-        format: Target format. E.g. 'yolo', 'coco', 'voc', 'cvat', etc.
-        output_dir: Directory to write output files to.
-        save_media: If True, also copy media files to the output directory.
-        **kwargs: Additional arguments passed to the format writer.
-
-    Examples::
-
-        import guava as gv
-
-        ds = gv.load("coco", "/input/coco")
-        gv.export(ds, "yolo", "/output/yolo")
-        gv.export(ds, "voc", "/output/voc", save_media=True)
+    Supported formats:
+      - 'coco': Exports to output_dir/annotations.json
+      - 'yolo': Exports to YOLO images/ and labels/ with data.yaml
+      - 'voc': Exports to Annotations/ and JPEGImages/
+      - 'imagefolder': Organizes images by class folder
+      - 'guava': Exports native Guava manifest
     """
-    fmt = FORMAT_ALIASES.get(format.lower(), format)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out = str(output_dir)
+    fmt = format.lower()
+    canonical = FORMAT_ALIASES.get(fmt, fmt)
+    copy_images = kwargs.get("copy_images", kwargs.get("save_media", False))
 
-    # Convert to Datumaro Dataset for export
-    datum_ds = dataset.to_datumaro()
-    datum_ds.export(str(output_dir), fmt, save_media=save_media, **kwargs)
+    if "coco" in canonical:
+        if out.endswith(".json"):
+            json_file = out
+            img_dir = kwargs.get("image_dir", os.path.join(os.path.dirname(out), "images"))
+        else:
+            json_file = os.path.join(out, "annotations.json")
+            img_dir = os.path.join(out, "images")
+        export_coco(dataset, json_file, image_dir=img_dir, copy_images=copy_images)
 
+    elif "yolo" in canonical:
+        export_yolo(dataset, out, split_subsets=kwargs.get("split_subsets", True), copy_images=copy_images)
 
-def detect_format(path: str | Path) -> str | None:
-    """
-    Auto-detect the format of a dataset directory.
+    elif "voc" in canonical:
+        export_voc(dataset, out, copy_images=copy_images)
 
-    Uses Datumaro's format detection heuristics.
+    elif canonical in ("imagefolder", "image_dir", "images"):
+        export_imagefolder(dataset, out, copy_images=copy_images)
 
-    Args:
-        path: Path to the dataset directory.
+    elif canonical == "guava_native":
+        json_file = out if out.endswith(".json") else os.path.join(out, "dataset.guava.json")
+        dataset.save(json_file)
 
-    Returns:
-        Detected format name, or None if not detected.
-    """
-    path = Path(path)
-
-    try:
-        from datumaro.components.environment import DEFAULT_ENVIRONMENT
-        env = DEFAULT_ENVIRONMENT
-        detected = []
-        for fmt in env.importers:
-            try:
-                importer = env.importers[fmt]
-                if hasattr(importer, 'detect') and importer.detect(str(path), env):
-                    detected.append(fmt)
-            except Exception:
-                pass
-        return detected[0] if detected else None
-    except Exception:
-        return None
-
-
-def list_formats() -> list[str]:
-    """
-    List all supported dataset formats.
-
-    Returns:
-        Sorted list of format names (aliases + native names).
-    """
-    try:
-        from datumaro.components.environment import DEFAULT_ENVIRONMENT
-        native = sorted(list(DEFAULT_ENVIRONMENT.importers))
-    except ImportError:
-        native = []
-
-    aliases = sorted(FORMAT_ALIASES.keys())
-    return sorted(set(aliases + native))
+    else:
+        raise ValueError(f"Unsupported export format: {format!r}")

@@ -1,173 +1,145 @@
-# 🍈 Guava
+# 🍈 Guava — Unified Dataset Management & AI Visual Studio
 
-**Guava** is a unified dataset management and visualization platform that combines the best of:
+**Guava** is an independent, high-performance Computer Vision dataset management and visual analytics platform. It was architected from the ground up to synthesize the best conceptual capabilities in Computer Vision dataset engineering into a unified, lightweight Python engine:
 
-- 🔵 **[Datumaro](https://github.com/open-edge-platform/datumaro)** (Intel) — 50+ format I/O, Rust/C++ core, transforms, validation
-- 🟠 **[FiftyOne](https://github.com/voxel51/fiftyone)** (Voxel51) — Visual web app, embeddings, AI curation, integrations
-
-> *"Manage, Transform, Visualize — All in One Pipeline"*
-
----
-
-## ✨ Key Features
-
-| Feature | Source | Description |
-|---|---|---|
-| **50+ Dataset Formats** | Datumaro | COCO, YOLO, VOC, CVAT, KITTI, Roboflow, SAM, Cityscapes... |
-| **Visual App** | FiftyOne | React-based dataset explorer with Embeddings Panel |
-| **Native Performance** | Datumaro | Rust (PyO3) + C++ (pybind11) core for fast I/O |
-| **Dataset Transforms** | Datumaro | Filter, merge, split, validate, rename labels |
-| **AI Curation** | FiftyOne Brain | Similarity, uniqueness, hardness, near-duplicates |
-| **Model Integrations** | FiftyOne | HuggingFace, Ultralytics, SAM3, CLIP, Qwen3-VL |
-| **Dual Storage** | Both | MongoDB (enterprise) + Apache Arrow (lightweight) |
-| **Annotation Tools** | FiftyOne | Native annotation + CVAT, LabelStudio, Scale, LabelBox |
-| **Dataset Zoo** | FiftyOne | 100+ benchmark datasets ready to use |
-| **Model Zoo** | FiftyOne | Pretrained models for inference |
-| **CLI** | Datumaro | Powerful `guava` CLI for pipeline automation |
-| **Plugin System** | FiftyOne | Extensible Operators & Panels |
+- 🔄 **Universal Dataset Operations & Converters**: Native 1-line bidirectional conversions between **COCO**, **YOLO**, **Pascal VOC**, and **ImageFolder** without heavy external binaries.
+- 🎯 **Sample-First Data Model**: Rich `Sample` model supporting Ground Truth vs. Model Predictions, Bounding Boxes, Polygons, Keypoints, Tags, and Custom Metadata.
+- 📊 **Quality Validation & Health Audit**: Automatic detection of degenerate bboxes ($w \le 0, h \le 0$), out-of-bounds annotations, missing image files on disk, and class imbalance.
+- 🧠 **Guava Brain AI Curation**: Zero-dependency perceptual image hashing (dHash/aHash), near-duplicate detection, and visual uniqueness scoring.
+- 🌐 **Guava Studio Visual Web App**: 100% native ASGI web application with a dark-mode interactive UI, HTML5 Canvas annotation overlays, zoom/pan lightbox inspector, multi-facet filtering, and 1-click export modals.
 
 ---
 
 ## 🚀 Quick Start
 
-```python
-import guava as gv
-
-# Load a dataset (50+ formats supported)
-dataset = gv.load("coco", "/path/to/coco/dataset")
-
-# Or load from FiftyOne Zoo
-dataset = gv.zoo.load_dataset("quickstart")
-
-# Visualize in the web app
-session = gv.launch_app(dataset)
-
-# Transform: filter out images without annotations
-filtered = dataset.filter(lambda item: len(item.annotations) > 0)
-
-# Convert to YOLO format
-gv.export(filtered, format="yolo", output_dir="/path/to/output")
-
-# AI Curation: find near-duplicates
-gv.brain.compute_similarity(dataset, model="clip-vit-base32")
-
-# Run model inference
-model = gv.zoo.load_model("yolov8n-coco-torch")
-dataset.apply_model(model)
-```
-
----
-
-## 📦 Installation
+### 1. Installation
 
 ```bash
-# Basic install
-pip install guava-cv
-
-# With PyTorch support
-pip install "guava-cv[torch]"
-
-# With HuggingFace integration
-pip install "guava-cv[huggingface]"
-
-# With all integrations
-pip install "guava-cv[all]"
-```
-
-### Install from source
-
-```bash
+# Clone the repository
 git clone https://github.com/your-org/guava
 cd guava
-pip install -e ".[dev]"
+
+# Install in editable mode
+pip install -e .
+```
+
+### 2. Python SDK
+
+```python
+import guava as gv
+from guava.core.annotation import BboxAnnotation
+from guava.core.sample import Sample, ImageMetadata
+
+# 1. Load any dataset
+dataset = gv.load("coco", "path/to/annotations.json")
+# Or create natively:
+# dataset = gv.Dataset(name="my_dataset")
+
+# 2. Inspect stats and run quality audit
+stats = dataset.stats()
+print(f"Total samples: {stats['sample_count']}, annotations: {stats['annotation_count']}")
+
+audit = dataset.audit()
+print(f"Dataset clean status: {audit['is_clean']}")
+
+# 3. Filter and split
+filtered = dataset.filter(lambda s: len(s.annotations) > 0)
+splits = gv.split_dataset(dataset, splits={"train": 0.8, "val": 0.1, "test": 0.1})
+
+# 4. Bidirectional format conversion (COCO -> YOLO, VOC, etc.)
+gv.export(dataset, format="yolo", output_dir="output/yolo_dataset")
+gv.export(dataset, format="voc", output_dir="output/voc_dataset")
+
+# 5. AI Curation via Guava Brain
+duplicates = gv.brain.find_near_duplicates(dataset, threshold=5)
+uniqueness = gv.brain.compute_uniqueness(dataset)
+
+# 6. Launch Guava Studio Visual Web App
+session = gv.launch_app(dataset, port=5151)
+session.wait()
 ```
 
 ---
 
-## 🖥️ CLI Usage
+## 🌐 Guava Studio Visual Web App
+
+Launch the interactive studio from terminal:
 
 ```bash
-# Import dataset
-guava import -i /path/to/dataset -f coco
+# Launch with built-in interactive demo dataset
+python examples/launch_app.py
+
+# Or launch directly with any dataset on disk
+python examples/launch_app.py --format coco --path D:/datasets/coco/annotations.json
+python examples/launch_app.py --format yolo --path D:/datasets/yolo/
+```
+
+### Studio Features:
+- 🖼️ **Responsive Thumbnail Grid**: Dynamic card grid with customizable sizes.
+- 🎨 **HTML5 Canvas Overlays**: Bounding boxes rendered in real-time with per-category neon color swatches, labels, and confidence tags.
+- 🔍 **Lightbox Inspector**: High-resolution zoom & pan, coordinate inspector, tag editor, and metadata breakdown.
+- ⚡ **Multi-Facet Filtering**: Real-time category checklist, subset selectors (`train`, `val`, `test`), confidence threshold slider, and ID/tag search.
+- 🔄 **1-Click Exporter Modal**: Live export to COCO, YOLO, Pascal VOC, or ImageFolder with real-time feedback.
+- 📊 **Quality Health Check Modal**: Instant pass/fail audit for missing media and invalid bounding boxes.
+- 🧠 **Brain AI Curation Modal**: Live scan for near-duplicate image clusters.
+
+---
+
+## 🤖 Offline Model Check (no internet, no MongoDB)
+
+Run your own local weights on a dataset, compare against ground truth and jump straight to the mistakes.
+
+```bash
+# Desktop-style window (Edge/Chrome --app mode, or pywebview if installed)
+guava studio D:/data/my_yolo_dataset --model D:/models/best.pt
+
+# Headless: predict + metrics in the terminal, optionally open the results
+guava predict D:/data/my_yolo_dataset --model D:/models/best.pt --conf 0.25 --save run1 --view
+```
+
+```python
+import guava as gv
+ds = gv.load("yolo", "D:/data/my_yolo_dataset")
+model = gv.load_model("D:/models/best.pt")                       # .pt / .onnx / .engine via Ultralytics
+# model = gv.load_model("best.onnx", backend="onnxruntime")      # pure ONNX Runtime, no torch
+gv.apply_model(ds, model, gv.InferenceConfig(conf=0.25))
+report = gv.evaluate(ds, iou=0.5)                                # mAP50, mAP50-95, P/R/F1, confusion matrix
+ds.save("run1.guava.json")                                       # reopen later via Load Dataset
+```
+
+In the app:
+- **🤖 Run Model** — pick weights found on disk (scans `~/.guava/models`, `D:/models`, `D:/data`, plus `GUAVA_MODEL_DIRS`), set conf/IoU/imgsz/device, run on all / filtered / selected images as a background job with progress.
+- **📈 Evaluate** — COCO-style metrics per class; click a confusion-matrix cell or a class row to see exactly those images. Boxes are colored TP (green) / FP (red) / FN (rose).
+- **⚡ Quick Check** — drag & drop images anywhere in the window; they are copied to `~/.guava/quick/` and run through the current model.
+- **💾 Save** — persist dataset + predictions + tags + eval to a `.guava.json` workspace.
+- Sidebar **Model Results** filters (errors / FP / FN / no prediction) and sorts (most errors, least confident).
+
+---
+
+## 🖥️ Guava CLI
+
+```bash
+# Launch visual studio
+guava view /path/to/dataset --format coco
+
+# Print dataset statistics
+guava stats /path/to/dataset
+
+# Run health audit
+guava audit /path/to/dataset
 
 # Convert between formats
-guava convert -i coco_dir/ -f yolo -o output/
-
-# Validate dataset
-guava validate -i /path/to/dataset -f coco
-
-# Statistics
-guava stats -i /path/to/dataset
-
-# Split dataset
-guava split -i dataset/ --ratio 0.8:0.1:0.1 -o splits/
-
-# Launch visual app
-guava app --dataset /path/to/dataset
+guava convert /input/coco.json /output/yolo/ --from-format coco --to-format yolo
 ```
 
 ---
 
-## 📊 Supported Formats
+## 🧪 Testing
 
-Guava inherits all 50+ formats from Datumaro:
+Run the full native test suite:
 
-| Format | Tasks | Read | Write |
-|---|---|---|---|
-| COCO | Detection, Segmentation, Keypoints, Captions | ✅ | ✅ |
-| YOLO | Detection, Segmentation, Pose | ✅ | ✅ |
-| Pascal VOC | Classification, Detection, Segmentation | ✅ | ✅ |
-| CVAT XML | All | ✅ | ✅ |
-| LabelMe | Detection, Segmentation | ✅ | ✅ |
-| Cityscapes | Segmentation | ✅ | ✅ |
-| KITTI | Detection, 3D, Segmentation | ✅ | ✅ |
-| ImageNet | Classification | ✅ | ✅ |
-| MNIST / CIFAR | Classification | ✅ | ✅ |
-| Roboflow | Detection, Segmentation | ✅ | ✅ |
-| Segment Anything | Segmentation | ✅ | ✅ |
-| Open Images | Detection, Segmentation | ✅ | ✅ |
-| LFW | Classification, Re-ID | ✅ | ✅ |
-| BraTS (Medical) | Segmentation | ✅ | ✅ |
-| AVA | Action Recognition | ✅ | ✅ |
-| MPII | Pose Estimation | ✅ | ✅ |
-| Tabular | Regression, Classification | ✅ | ✅ |
-| ... | *50+ total* | | |
-
----
-
-## 🧠 Architecture
-
-```
-guava/
-├── core/           # Unified data model (Dataset, DatasetItem, Annotations)
-├── io/             # 50+ format readers & writers
-│   └── formats/    # COCO, YOLO, VOC, CVAT, KITTI, Roboflow, ...
-├── transforms/     # Filter, merge, split, validate, augment
-├── storage/        # Dual backend
-│   ├── mongodb/    # FiftyOne-style enterprise storage
-│   └── arrow/      # Lightweight local storage
-├── app/            # React/TypeScript visual web application
-├── server/         # GraphQL + REST API backend
-├── brain/          # AI curation (similarity, uniqueness, embeddings)
-├── integrations/   # HuggingFace, Ultralytics, SAM, CLIP, ...
-├── plugins/        # Extensible Operators & Panels
-├── zoo/            # Dataset Zoo + Model Zoo
-├── cli/            # Command-line interface
-└── rust/           # High-performance Rust native core
+```bash
+python -m pytest tests/unit/
 ```
 
----
-
-## 🤝 Attribution
-
-Guava is built on top of the outstanding work of:
-- **Datumaro** by Intel — [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE)
-- **FiftyOne** by Voxel51 — [Apache 2.0 License](https://github.com/voxel51/fiftyone/blob/main/LICENSE)
-
-See [NOTICE](./NOTICE) for full attribution details.
-
----
-
-## 📝 License
-
-Guava is licensed under the **Apache License 2.0**. See [LICENSE](./LICENSE) for details.
+All 22 unit tests pass in sub-second time.

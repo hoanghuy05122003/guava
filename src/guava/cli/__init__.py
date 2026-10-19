@@ -1,3 +1,6 @@
-# Copyright (C) 2019-2021 Intel Corporation
-#
-# SPDX-License-Identifier: MIT
+"""
+Guava CLI Package.
+"""
+from guava.cli.main import main
+
+__all__ = ["main"]

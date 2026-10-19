@@ -1,3 +1,0 @@
-# Spaces
-
-FiftyOne App Spaces

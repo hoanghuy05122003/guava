@@ -1,119 +1,148 @@
 """
-Guava 🍈 — Unified Dataset Management & Visualization Platform
+Guava 🍈 — Unified Dataset Management & AI Visual Studio.
 
-Combines the best of:
-  - Datumaro (Intel): 50+ format I/O, Rust/C++ core, transforms, validation
-  - FiftyOne (Voxel51): Visual web app, embeddings, AI curation, integrations
+Pure Python architecture combining:
+  - Universal format I/O (COCO, YOLO, Pascal VOC, ImageFolder)
+  - Rich sample data model with bounding boxes, segmentation, keypoints, and labels
+  - Dataset transformations: filter, split (train/val/test), merge, take
+  - Quality validation & health audit (missing media, invalid bboxes, class balance)
+  - Brain AI curation (perceptual hashing, near-duplicate detection, visual similarity)
+  - 100% Native Visual Web Application (Guava Studio)
 
-Usage::
-
+Usage:
     import guava as gv
 
-    # Load a dataset
-    dataset = gv.load("coco", "/path/to/data")
+    # 1. Load dataset
+    dataset = gv.load("coco", "/path/to/annotations.json")
 
-    # Visualize
+    # 2. Inspect & audit
+    print(dataset.stats())
+    report = dataset.audit()
+
+    # 3. Transform & split
+    train_ds, val_ds, test_ds = dataset.split((0.8, 0.1, 0.1))
+
+    # 4. Convert & export
+    gv.export(dataset, "yolo", "/output/yolo")
+
+    # 5. Launch Guava Studio
     session = gv.launch_app(dataset)
-
-    # Export to another format
-    gv.export(dataset, format="yolo", output_dir="/path/to/output")
-
 """
-
 from guava.version import __version__
 
-# ── Core data model ─────────────────────────────────────────────────────────
-from guava.core.guava_dataset import GuavaDataset, Dataset  # noqa: F401
+# ── Core Data Model ──────────────────────────────────────────────────────────
+from guava.core import (
+    Annotation,
+    BboxAnnotation,
+    Category,
+    Dataset,
+    DatasetSchema,
+    GuavaDataset,
+    ImageMetadata,
+    KeypointAnnotation,
+    LabelAnnotation,
+    PolygonAnnotation,
+    Sample,
+)
 
-# Try importing Datumaro types (optional, only if datumaro is installed)
-try:
-    from datumaro.components.dataset_base import DatasetItem  # noqa: F401
-    from datumaro.components.annotation import (  # noqa: F401
-        Annotation,
-        Label,
-        Bbox,
-        Polygon,
-        Mask,
-        Points,
-        Caption,
-        Cuboid3d,
-        Ellipse,
-    )
-    # PolyLine is the correct name in Datumaro (note capital L)
-    try:
-        from datumaro.components.annotation import PolyLine  # noqa: F401
-        Polyline = PolyLine  # alias for convenience
-    except ImportError:
-        pass
-    from datumaro.components.media import Image, Video, PointCloud  # noqa: F401
-    _DATUMARO_AVAILABLE = True
-except ImportError:
-    _DATUMARO_AVAILABLE = False
+# ── I/O Operations ───────────────────────────────────────────────────────────
+from guava.io import (
+    FORMAT_ALIASES,
+    detect_format,
+    export,
+    export_coco,
+    export_imagefolder,
+    export_voc,
+    export_yolo,
+    list_formats,
+    load,
+    load_coco,
+    load_imagefolder,
+    load_voc,
+    load_yolo,
+)
 
-# ── I/O functions ────────────────────────────────────────────────────────────
-from guava.io.api import load, export, detect_format  # noqa: F401
-
-# ── Transform functions ──────────────────────────────────────────────────────
-from guava.transforms.api import (  # noqa: F401
+# ── Transforms & Auditing ────────────────────────────────────────────────────
+from guava.transforms import (
     filter_dataset,
     merge_datasets,
     split_dataset,
     validate_dataset,
 )
 
-# ── App launcher (from FiftyOne) ─────────────────────────────────────────────
-from guava.app.api import launch_app, close_app  # noqa: F401
-
-# ── Submodules available for explicit import ─────────────────────────────────
-from guava import (  # noqa: F401
-    core,
-    io,
-    transforms,
-    storage,
-    brain,
-    util,
+# ── Native Web Application ───────────────────────────────────────────────────
+from guava.app import (
+    close_app,
+    get_session,
+    launch_app,
 )
+
+# ── Submodules ───────────────────────────────────────────────────────────────
+from guava import (
+    app,
+    brain,
+    cli,
+    core,
+    eval,
+    io,
+    models,
+    server,
+    transforms,
+)
+from guava.eval import evaluate, evaluate_detections
+from guava.models import InferenceConfig, apply_model, load_model
 
 __all__ = [
     "__version__",
     # Core
     "Dataset",
     "GuavaDataset",
-    "DatasetItem",
+    "Sample",
+    "ImageMetadata",
     "Annotation",
-    "Label",
-    "Bbox",
-    "Polygon",
-    "Mask",
-    "Points",
-    "Polyline",
-    "Caption",
-    "Cuboid3d",
-    "Ellipse",
-    "Image",
-    "Video",
-    "PointCloud",
+    "BboxAnnotation",
+    "PolygonAnnotation",
+    "LabelAnnotation",
+    "KeypointAnnotation",
+    "Category",
+    "DatasetSchema",
     # I/O
     "load",
     "export",
     "detect_format",
+    "list_formats",
+    "FORMAT_ALIASES",
+    "load_coco",
+    "export_coco",
+    "load_yolo",
+    "export_yolo",
+    "load_voc",
+    "export_voc",
+    "load_imagefolder",
+    "export_imagefolder",
     # Transforms
+    "split_dataset",
     "filter_dataset",
     "merge_datasets",
-    "split_dataset",
     "validate_dataset",
     # App
     "launch_app",
     "close_app",
+    "get_session",
+    # Models & evaluation (offline)
+    "load_model",
+    "apply_model",
+    "InferenceConfig",
+    "evaluate",
+    "evaluate_detections",
     # Submodules
+    "models",
+    "eval",
     "core",
     "io",
     "transforms",
-    "storage",
     "brain",
-    "integrations",
-    "plugins",
-    "zoo",
+    "server",
+    "app",
     "cli",
-    "util",
 ]

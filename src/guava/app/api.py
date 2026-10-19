@@ -1,120 +1,51 @@
 """
-Guava App API
+Guava App API.
 
-Launch the FiftyOne visual web application to explore datasets.
-
-The App provides:
-  - Sample grid with image/video browsing
-  - Annotation overlay (bboxes, masks, keypoints, etc.)
-  - Embeddings panel (UMAP, t-SNE, PCA visualization)
-  - Filtering & search
-  - Tagging & labeling
-  - Model evaluation views
+Launch the Guava Visual Web Application to explore datasets.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    pass
+from guava.core.dataset import Dataset
+from guava.server.session import GuavaAppSession, launch_server
 
 __all__ = ["launch_app", "close_app", "get_session"]
 
-_active_session = None
+_active_session: GuavaAppSession | None = None
 
 
 def launch_app(
-    dataset: Any | None = None,
+    dataset: Dataset | None = None,
     *,
-    port: int | None = None,
-    address: str | None = None,
+    port: int = 5151,
+    address: str = "127.0.0.1",
     auto: bool = True,
-    remote: bool = False,
     desktop: bool = False,
-    height: int | None = None,
     **kwargs: Any,
-) -> Any:
+) -> GuavaAppSession:
     """
-    Launch the Guava visual web application.
-
-    Wraps FiftyOne's App launcher, converting Guava datasets to
-    FiftyOne datasets automatically.
+    Launch the 100% Native Guava Visual Web Application.
 
     Args:
-        dataset: A Guava Dataset to visualize. If None, opens an empty App.
-        port: Port to use for the App server (default: 5151).
-        address: Address to bind to (default: localhost).
-        auto: If True, auto-open the App in the browser.
-        remote: If True, launch in remote mode (no browser).
-        desktop: If True, launch in desktop mode.
-        height: Height of the App in pixels (for notebook mode).
-        **kwargs: Additional args passed to ``fiftyone.launch_app()``.
+        dataset: A Guava Dataset instance.
+        port: Port to bind to (default: 5151).
+        address: Address to bind to (default: 127.0.0.1).
+        auto: If True, auto-open the browser.
+        desktop: If True, open as a standalone app window (Edge/Chrome --app mode).
 
     Returns:
-        A FiftyOne Session object.
-
-    Examples::
-
-        import guava as gv
-
-        ds = gv.load("coco", "/path/to/data")
-        session = gv.launch_app(ds)
-
-        # In a script, block until the App is closed
-        session.wait()
+        GuavaAppSession object with .wait(), .close(), .url.
     """
     global _active_session
 
-    try:
-        import fiftyone as fo
-    except ImportError:
-        raise ImportError(
-            "FiftyOne is required for the visual App. "
-            "Install with: pip install fiftyone"
-        )
-
-    # Convert Guava Dataset → FiftyOne Dataset if needed
-    fo_dataset = None
-    if dataset is not None:
-        if hasattr(dataset, "to_fiftyone"):
-            # It's a Guava Dataset
-            fo_dataset = dataset.to_fiftyone()
-        elif hasattr(dataset, "name") and hasattr(dataset, "add_samples"):
-            # It's already a FiftyOne Dataset
-            fo_dataset = dataset
-
-    # Configure FiftyOne to use Guava's native server and static assets
-    import os
-    import fiftyone.constants as foc
-    import fiftyone.core.service as fos
-
-    guava_server_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "server")
+    session = launch_server(
+        dataset=dataset,
+        port=port,
+        address=address,
+        auto=auto,
+        desktop=desktop,
     )
-    foc.SERVER_DIR = guava_server_dir
-    fos.ServerService.working_dir = guava_server_dir
-
-    launch_kwargs: dict[str, Any] = {
-        "dataset": fo_dataset,
-        "auto": auto,
-        "remote": remote,
-    }
-    if port is not None:
-        launch_kwargs["port"] = port
-    if address is not None:
-        launch_kwargs["address"] = address
-    if height is not None:
-        launch_kwargs["height"] = height
-    launch_kwargs.update(kwargs)
-
-    import inspect
-    sig = inspect.signature(fo.launch_app)
-    if "desktop" in sig.parameters and desktop:
-        launch_kwargs["desktop"] = desktop
-
-    session = fo.launch_app(**launch_kwargs)
-
-
 
     _active_session = session
     return session
@@ -130,14 +61,8 @@ def close_app() -> None:
         except Exception:
             pass
         _active_session = None
-    else:
-        try:
-            import fiftyone as fo
-            fo.close_app()
-        except Exception:
-            pass
 
 
-def get_session() -> Any | None:
+def get_session() -> GuavaAppSession | None:
     """Get the currently active Guava App session."""
     return _active_session

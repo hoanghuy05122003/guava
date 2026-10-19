@@ -79,3 +79,7 @@ guava_config.json
 # OS
 Thumbs.db
 .DS_Store
+
+# Local tool caches
+.cache/
+.claude/

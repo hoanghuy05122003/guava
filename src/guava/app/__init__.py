@@ -1,5 +1,5 @@
 """
-Guava App package — FiftyOne visual web application.
+Guava App Package.
 """
 from guava.app.api import close_app, get_session, launch_app
 

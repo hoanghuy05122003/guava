@@ -1,19 +1,20 @@
-"""Guava Brain — AI dataset curation."""
-
+"""
+Guava Native Brain AI Package.
+"""
 from guava.brain.api import (
-    compute_hardness,
-    compute_mistakenness,
+    ahash,
     compute_similarity,
     compute_uniqueness,
+    dhash,
     find_near_duplicates,
-    visualize_embeddings,
+    hamming_distance,
 )
 
 __all__ = [
-    "compute_similarity",
-    "compute_uniqueness",
-    "compute_hardness",
-    "compute_mistakenness",
-    "visualize_embeddings",
     "find_near_duplicates",
+    "compute_uniqueness",
+    "compute_similarity",
+    "dhash",
+    "ahash",
+    "hamming_distance",
 ]

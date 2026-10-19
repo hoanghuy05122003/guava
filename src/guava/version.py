@@ -1,3 +1,4 @@
-"""Guava version."""
-
-__version__ = "0.1.0"
+"""
+Guava Version
+"""
+__version__ = "1.0.0"

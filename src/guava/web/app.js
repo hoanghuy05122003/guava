@@ -372,7 +372,7 @@ function renderGrid() {
     if (sample.similarity !== undefined && sample.id !== state.similarTo) {
       const simBadge = document.createElement("span");
       simBadge.className = "sample-tag-pill";
-      simBadge.style.cssText = "background:rgba(59,130,246,0.3); border:1px solid #3b82f6; color:#93c5fd;";
+      simBadge.style.cssText = "background:rgba(59,130,246,0.3); border:1px solid #3b82f6; color:#1d4ed8;";
       simBadge.textContent = `${(sample.similarity * 100).toFixed(0)}% match`;
       badgeContainer.appendChild(simBadge);
     }
@@ -389,7 +389,7 @@ function renderGrid() {
     // 3. Canvas Container
     const canvasWrap = document.createElement("div");
     canvasWrap.className = "card-canvas-wrap";
-    canvasWrap.style.cssText = "position:relative; width:100%; aspect-ratio:4/3; background:#0b1120; overflow:hidden;";
+    canvasWrap.style.cssText = "position:relative; width:100%; aspect-ratio:4/3; background:var(--bg-well); overflow:hidden;";
 
     const canvas = document.createElement("canvas");
     canvas.id = `canvas-${sample.id}`;
@@ -914,7 +914,7 @@ function updateActiveFiltersBar() {
     const chip = document.createElement("span");
     chip.className = "filter-chip-active";
     chip.style.borderColor = "#ef4444";
-    chip.style.color = "#fca5a5";
+    chip.style.color = "#b91c1c";
     chip.innerHTML = `<span>⚠️ Issue: <strong>${state.filterIssue}</strong></span> <span class="filter-chip-remove" onclick="removeIssueFilter()">&times;</span>`;
     bar.appendChild(chip);
   }
@@ -1105,7 +1105,7 @@ async function executeLoadDataset() {
     document.getElementById("load-dataset-path").value = path;
   }
 
-  statusEl.innerHTML = `<span style="color:#38bdf8; display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:14px; height:14px; display:inline-block;"></span> Loading dataset into Guava engine...</span>`;
+  statusEl.innerHTML = `<span style="color:#0369a1; display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:14px; height:14px; display:inline-block;"></span> Loading dataset into Guava engine...</span>`;
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.style.opacity = "0.7";
@@ -1199,17 +1199,17 @@ async function browseToDirectory(dirPath) {
           return `
             <div class="browser-item is-dir" onclick="browseToDirectory('${safePath}')">
               <div class="browser-item-left">
-                <span style="color:#fbbf24; font-size:14px;">📁</span>
+                <span style="color:#b7791f; font-size:14px;">📁</span>
                 <span>${escapeHtml(item.name)}</span>
               </div>
-              <span style="font-size:11px; color:#38bdf8;">Open &rarr;</span>
+              <span style="font-size:11px; color:#0369a1;">Open &rarr;</span>
             </div>
           `;
         } else {
           return `
             <div class="browser-item" onclick="selectBrowserItem('${safePath}')">
               <div class="browser-item-left">
-                <span style="color:#94a3b8; font-size:14px;">📄</span>
+                <span style="color:#6b7a5e; font-size:14px;">📄</span>
                 <span>${escapeHtml(item.name)}</span>
               </div>
               <span style="font-size:10px; color:var(--text-muted);">Select</span>
@@ -1274,7 +1274,7 @@ async function executeConvert() {
 async function loadAuditResults() {
   const container = document.getElementById("audit-results-container");
   if (!container) return;
-  container.innerHTML = "<p style='color:#94a3b8'>Running full dataset health inspection...</p>";
+  container.innerHTML = "<p style='color:#6b7a5e'>Running full dataset health inspection...</p>";
 
   try {
     const res = await fetch("/api/audit");
@@ -1340,9 +1340,9 @@ async function runLiveDuplicateScan() {
         listEl.innerHTML = "<p style='color:#10b981; font-size:13px; margin-top:8px;'>✅ No near-duplicate images detected (clean dataset)!</p>";
       } else {
         listEl.innerHTML = data.duplicates.map(d => `
-          <div style="background:#1e293b; padding:10px 14px; border-radius:6px; margin-top:8px; font-size:12px; border-left:3px solid #f59e0b;">
+          <div style="background:var(--bg-well); padding:10px 14px; border-radius:6px; margin-top:8px; font-size:12px; border-left:3px solid #f59e0b;">
             <strong style="color:#f59e0b">Cluster #${d.group_id} (${d.count} images):</strong>
-            <div style="margin-top:4px; color:#cbd5e1;">${d.sample_ids.join(", ")}</div>
+            <div style="margin-top:4px; color:#3d4a33;">${d.sample_ids.join(", ")}</div>
           </div>
         `).join("");
       }

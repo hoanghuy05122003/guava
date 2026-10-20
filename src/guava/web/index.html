@@ -22,7 +22,7 @@
         <span class="ds-dot"></span>
         <span id="ds-name">Loading...</span>
         <span class="ds-count" id="ds-count-badge">0 samples</span>
-        <span style="font-size:10px; color:#38bdf8; margin-left:4px;">▼ Switch</span>
+        <span style="font-size:10px; color:#0369a1; margin-left:4px;">▼ Switch</span>
       </div>
     </div>
 
@@ -281,7 +281,7 @@
         <div class="discovered-section" style="margin-bottom: 20px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <div>
-              <h3 style="font-size:13px; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px; margin:0;">
+              <h3 style="font-size:13px; font-weight:700; color:#0369a1; display:flex; align-items:center; gap:6px; margin:0;">
                 <span>⚡</span> Discovered Datasets on Disk (1-Click Load)
               </h3>
               <p style="font-size:11px; color:var(--text-muted); margin:2px 0 0 0;">
@@ -327,7 +327,7 @@
           <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
               <label style="margin-bottom:0; font-weight:600; font-size:12px;">Custom Dataset Path (folder or file):</label>
-              <button type="button" onclick="openFolderBrowser()" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer;">
+              <button type="button" onclick="openFolderBrowser()" style="background:rgba(3,105,161,0.15); border:1px solid rgba(3,105,161,0.4); color:#0369a1; font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer;">
                 📂 Browse Folder...
               </button>
             </div>
@@ -368,7 +368,7 @@
       <div class="modal-body" style="padding:16px;">
         <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
           <button class="secondary-btn" onclick="browseUpDirectory()" style="padding:5px 12px; font-size:12px;" title="Go to parent directory">⬆️ Up</button>
-          <input type="text" id="browser-current-path" readonly style="flex:1; font-family:monospace; font-size:12px; background:var(--bg-base); border:1px solid var(--border-subtle); padding:6px 10px; border-radius:6px; color:#38bdf8;">
+          <input type="text" id="browser-current-path" readonly style="flex:1; font-family:monospace; font-size:12px; background:var(--bg-base); border:1px solid var(--border-subtle); padding:6px 10px; border-radius:6px; color:#0369a1;">
           <button class="primary-btn" onclick="selectCurrentBrowserFolder()" style="padding:5px 14px; font-size:12px; font-weight:600;">✅ Select This Folder</button>
         </div>
         <div id="browser-items-list" style="height:320px; overflow-y:auto; border:1px solid var(--border-subtle); border-radius:8px; background:rgba(0,0,0,0.25); padding:6px;">
@@ -456,7 +456,7 @@
           <div style="display:flex; gap:12px; margin: 10px 0; align-items:center;">
             <button class="primary-btn" onclick="runLiveDuplicateScan()">Scan Duplicates Now</button>
             <button class="secondary-btn" id="btn-tag-duplicates" style="display:none;" onclick="tagAllDuplicates()">🏷️ Tag All Duplicates</button>
-            <span id="brain-scan-result" style="color: #94a3b8; font-size: 13px;"></span>
+            <span id="brain-scan-result" style="color: #6b7a5e; font-size: 13px;"></span>
           </div>
           <div id="brain-duplicates-list"></div>
         </div>
@@ -467,7 +467,7 @@
           <p>Calculate visual uniqueness scores (0.00 = highly redundant, 1.00 = unique outlier) for all samples:</p>
           <div style="margin: 10px 0;">
             <button class="primary-btn" onclick="runComputeUniqueness()">Compute Uniqueness & Sort Grid</button>
-            <span id="uniqueness-result" style="margin-left: 12px; color: #94a3b8; font-size: 13px;"></span>
+            <span id="uniqueness-result" style="margin-left: 12px; color: #6b7a5e; font-size: 13px;"></span>
           </div>
         </div>
 

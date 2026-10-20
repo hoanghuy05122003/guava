@@ -242,7 +242,7 @@ function qcChart({ title, xLabel, yLabel, series, vlines = [] }) {
     <text x="${X(g)}" y="${H - B + 12}" text-anchor="middle" class="qc-tick">${g}</text>`).join("");
   const lines = series.map((s) => `
     <polyline fill="none" stroke="${s.color}" stroke-width="1.8" stroke-linejoin="round" points="${s.pts.map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(" ")}"><title>${escapeHtml(s.label)}</title></polyline>
-    ${(s.dots || []).map((d) => `<circle cx="${X(d.x)}" cy="${Y(d.y)}" r="4" fill="${s.color}" stroke="#0f172a" stroke-width="1.5"><title>${escapeHtml(d.title)}</title></circle>`).join("")}`).join("");
+    ${(s.dots || []).map((d) => `<circle cx="${X(d.x)}" cy="${Y(d.y)}" r="4" fill="${s.color}" stroke="#ffffff" stroke-width="1.5"><title>${escapeHtml(d.title)}</title></circle>`).join("")}`).join("");
   const vl = vlines.map((v) => `<line x1="${X(v.x)}" x2="${X(v.x)}" y1="${Y(0)}" y2="${Y(1)}" stroke="${v.color}" stroke-dasharray="${v.dash || "4 3"}" stroke-width="1.2"><title>${escapeHtml(v.title || "")}</title></line>`).join("");
   return `<svg class="qc-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(title)}">
     <text x="${L}" y="11" class="qc-ctitle">${escapeHtml(title)}</text>
@@ -283,7 +283,7 @@ function renderQcCurves() {
   el.innerHTML = `
     <h4 class="eval-h">${escapeHtml(lb)} <span class="qc-sub">● = recommended threshold (PR) / best F1 · dashed = threshold for R ≥ ${pct(target)}</span></h4>
     <div class="qc-chart-row">
-      ${qcChart({ title: "Precision–Recall", xLabel: "Recall", yLabel: "Precision", series: pr, vlines: [{ x: target, color: "#94a3b8", title: `target recall ${pct(target)}` }] })}
+      ${qcChart({ title: "Precision–Recall", xLabel: "Recall", yLabel: "Precision", series: pr, vlines: [{ x: target, color: "#6b7a5e", title: `target recall ${pct(target)}` }] })}
       ${qcChart({ title: "F1 vs confidence", xLabel: "Confidence threshold", yLabel: "F1", series: f1, vlines: vF1 })}
     </div>
     <div class="qc-legend">${legend.join("")}</div>`;

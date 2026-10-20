@@ -168,7 +168,7 @@ async function scanModels() {
     modelUi.models = data.models || [];
     renderModelList();
   } catch (e) {
-    list.innerHTML = `<div style="padding:12px; color:#f87171; font-size:12px;">${escapeHtml(e.message)}</div>`;
+    list.innerHTML = `<div style="padding:12px; color:#c53030; font-size:12px;">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -211,7 +211,7 @@ async function inspectModel() {
       classes.slice(0, 40).map((c) => `<span class="cls-chip">${escapeHtml(c)}</span>`).join("") +
       (classes.length > 40 ? ` +${classes.length - 40} more` : "");
   } catch (e) {
-    out.innerHTML = `<span style="color:#f87171">❌ ${escapeHtml(e.message)}</span>`;
+    out.innerHTML = `<span style="color:#c53030">❌ ${escapeHtml(e.message)}</span>`;
   }
 }
 
@@ -463,7 +463,7 @@ function renderEvalReport(r) {
       <tbody>${classes.map((c) => `
         <tr class="clickable" data-label="${escapeHtml(c.label)}">
           <td><span class="cat-color-dot" style="display:inline-block; background:${getCategoryColor(c.label)}"></span> ${escapeHtml(c.label)}${c.no_gt ? ` <span class="no-gt-pill" title="No ground truth of this class in the dataset: all its predictions are FP">no GT</span>` : ""}</td>
-          <td>${c.support}</td><td>${c.tp}</td><td style="color:${c.fp ? "#f87171" : ""}">${c.fp}</td><td style="color:${c.fn ? "#fb7185" : ""}">${c.fn}</td>
+          <td>${c.support}</td><td>${c.tp}</td><td style="color:${c.fp ? "#c53030" : ""}">${c.fp}</td><td style="color:${c.fn ? "#be123c" : ""}">${c.fn}</td>
           <td>${pct(c.precision)}</td><td>${pct(c.recall)}</td><td>${pct(c.f1)}</td><td>${pct(c.ap50)}</td><td>${pct(c.ap50_95)}</td>
         </tr>`).join("")}</tbody>
     </table>` : `<div style="color:var(--text-muted); font-size:12px;">No per-class metrics for this task.</div>`;

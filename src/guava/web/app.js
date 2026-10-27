@@ -86,6 +86,7 @@ function initEventListeners() {
     searchTimeout = setTimeout(() => {
       state.searchQuery = e.target.value.trim().toLowerCase();
       state.page = 1;
+      updateActiveFiltersBar();
       loadSamples();
     }, 250);
   });
@@ -299,7 +300,9 @@ function renderGrid() {
       <div class="empty-state" style="grid-column: 1 / -1; padding: 60px 20px; text-align: center; color: var(--text-muted);">
         <div style="font-size: 38px; margin-bottom: 12px;">🍈</div>
         <h3 style="color: var(--text-main); font-size: 16px; margin-bottom: 6px;">No samples found</h3>
-        <p style="font-size: 13px;">Try adjusting your search, subset filters, or confidence threshold.</p>
+        ${activeFilterList().length ? `<p style="font-size: 13px;">Hidden by: <b>${activeFilterList().map(escapeHtml).join("</b> · <b>")}</b></p>
+        <button class="primary-btn" style="margin-top:12px;" onclick="clearAllFilters()">✕ Clear all filters</button>`
+        : `<p style="font-size: 13px;">${state.totalSamples || (state.info && state.info.total_samples) ? "" : "This dataset has no images. "}Try another dataset with 📂 Load.</p>`}
       </div>
     `;
     return;
@@ -707,6 +710,23 @@ function updateActiveFiltersBar() {
     bar.appendChild(chip);
   }
 
+  if (state.searchQuery) {
+    hasFilters = true;
+    const chip = document.createElement("span");
+    chip.className = "filter-chip-active";
+    chip.innerHTML = `<span>🔎 Search: <strong>${escapeHtml(state.searchQuery)}</strong></span> <span class="filter-chip-remove" onclick="clearSearchFilter()">&times;</span>`;
+    bar.appendChild(chip);
+  }
+
+  ["activeSubsets", "activeTags"].forEach((key) => {
+    if (!state[key].size) return;
+    hasFilters = true;
+    const chip = document.createElement("span");
+    chip.className = "filter-chip-active";
+    chip.innerHTML = `<span>${key === "activeSubsets" ? "📁 Subset" : "🏷️ Tag"}: <strong>${[...state[key]].map(escapeHtml).join(", ")}</strong></span> <span class="filter-chip-remove" onclick="clearSetFilter('${key}')">&times;</span>`;
+    bar.appendChild(chip);
+  });
+
   if (state.filterIssue) {
     hasFilters = true;
     const chip = document.createElement("span");
@@ -760,6 +780,42 @@ function toggleCategory(name) {
 
 function clearCategoryFilter() {
   state.activeCategories.clear();
+  updateFilterUI();
+  updateActiveFiltersBar();
+  state.page = 1;
+  loadSamples();
+}
+
+/** Human-readable list of what currently filters the grid (for the empty-grid message). */
+function activeFilterList() {
+  const out = [];
+  if (state.searchQuery) out.push(`search "${state.searchQuery}"`);
+  if (state.activeSubsets.size) out.push(`subset ${[...state.activeSubsets].join(", ")}`);
+  if (state.activeTags.size) out.push(`tag ${[...state.activeTags].join(", ")}`);
+  if (state.activeCategories.size) out.push(`class ${[...state.activeCategories].join(", ")}`);
+  if (state.filterIssue) out.push(`issue ${state.filterIssue}`);
+  if (state.cmGt) out.push(`confusion cell ${state.cmGt} → ${state.cmPred}`);
+  if (state.similarTo) out.push(`similar to ${state.similarTo}`);
+  if (state.cmp && state.cmp.mode) out.push(compareChipLabel());
+  return out;
+}
+
+/** Same as the sidebar's Reset button. Also used when another dataset is loaded. */
+function clearAllFilters() {
+  document.getElementById("reset-filters-btn").click();
+  if (typeof confInitDone !== "undefined") confInitDone = false;  // editor.js: pick up the new dataset's eval conf
+}
+
+function clearSearchFilter() {
+  state.searchQuery = "";
+  document.getElementById("sample-search").value = "";
+  state.page = 1;
+  updateActiveFiltersBar();
+  loadSamples();
+}
+
+function clearSetFilter(key) {
+  state[key].clear();
   updateFilterUI();
   updateActiveFiltersBar();
   state.page = 1;
@@ -957,6 +1013,7 @@ async function executeLoadDataset() {
         }
         state.page = 1;
         state.selectedSamples.clear();
+        clearAllFilters();  // search / subsets / classes of the previous dataset would hide everything
         await loadDatasetInfo();
         await loadSamples();
       }, 500);

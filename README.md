@@ -220,6 +220,9 @@ In the app:
 # Launch visual studio
 guava view /path/to/dataset --format coco
 
+# Share it on the local network (listens on 0.0.0.0, prints the LAN URLs)
+guava studio --lan
+
 # Print dataset statistics
 guava stats /path/to/dataset
 
@@ -229,6 +232,8 @@ guava audit /path/to/dataset
 # Convert between formats
 guava convert /input/coco.json /output/yolo/ --from-format coco --to-format yolo
 ```
+
+By default the server only listens on `127.0.0.1`. With `--lan` (on `view` or `studio`) anyone on the network can open the app: there is no login, and the app can browse folders, load datasets, run models and delete samples on the host. Use it only on a trusted network. On Windows, allow Python on **Private networks** when the firewall asks.
 
 ---
 

@@ -23,7 +23,9 @@ class GuavaAppSession:
     def __init__(self, port: int = 5151, address: str = "127.0.0.1"):
         self.port = port
         self.address = address
-        self.url = f"http://{address}:{port}"
+        # 0.0.0.0 listens on every interface but is not a browsable address
+        local = "127.0.0.1" if address in ("0.0.0.0", "::", "") else address
+        self.url = f"http://{local}:{port}"
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._shutdown_event: asyncio.Event | None = None
@@ -69,6 +71,25 @@ class GuavaAppSession:
                 threading.Timer(0.3, lambda: open_app_window(self.url)).start()
             else:
                 threading.Timer(0.5, lambda: webbrowser.open(self.url, new=2)).start()
+
+    def lan_urls(self) -> list[str]:
+        """URLs other machines on the network can open (empty when bound to localhost only)."""
+        if self.address not in ("0.0.0.0", "::", ""):
+            return []
+        import socket
+        try:
+            ips = socket.gethostbyname_ex(socket.gethostname())[2]
+        except OSError:
+            ips = []
+        # primary interface first: the one the default route uses (UDP connect sends no packet)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("10.255.255.255", 1))
+                primary = s.getsockname()[0]
+            ips = [primary] + [ip for ip in ips if ip != primary]
+        except OSError:
+            pass
+        return [f"http://{ip}:{self.port}" for ip in ips if not ip.startswith(("127.", "0."))]
 
     def wait(self) -> None:
         """Keep the session running until interrupted by user (Ctrl+C)."""

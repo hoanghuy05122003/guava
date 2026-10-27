@@ -35,6 +35,7 @@ def main() -> None:
     view_parser.add_argument("path", nargs="?", default=None, help="Path to dataset")
     view_parser.add_argument("--format", "-f", default=None, help="Dataset format (coco, yolo, voc, etc.)")
     view_parser.add_argument("--port", "-p", type=int, default=5151, help="Web port (default: 5151)")
+    view_parser.add_argument("--lan", action="store_true", help="Also accept connections from other machines on the network")
 
     # Command: studio (offline desktop app)
     studio_parser = subparsers.add_parser("studio", help="Open Guava Studio as an offline desktop app window")
@@ -43,6 +44,7 @@ def main() -> None:
     studio_parser.add_argument("--model", "-m", default=None, help="Preselect a local model (.pt/.onnx/.engine)")
     studio_parser.add_argument("--port", "-p", type=int, default=5151, help="Port (default: 5151)")
     studio_parser.add_argument("--browser", action="store_true", help="Open in a normal browser tab instead")
+    studio_parser.add_argument("--lan", action="store_true", help="Also accept connections from other machines on the network")
 
     # Command: predict (headless model check)
     pred_parser = subparsers.add_parser("predict", help="Run a local model on a dataset and print metrics")
@@ -88,8 +90,9 @@ def main() -> None:
             fmt = args.format or detect_format(args.path)
             print(f"📥 Loading dataset '{args.path}' (format: {fmt})...")
             ds = load(fmt, args.path)
-        session = launch_app(dataset=ds, port=args.port, auto=True)
+        session = launch_app(dataset=ds, port=args.port, address=_bind_address(args), auto=True)
         print(f"🍈 Guava Studio running at: {session.url}")
+        _print_lan(session)
         print("Press Ctrl+C to stop.")
         try:
             session.wait()
@@ -122,6 +125,15 @@ def main() -> None:
         print(f"✅ Exported {len(ds)} samples to {args.output_path}")
 
 
+def _bind_address(args: argparse.Namespace) -> str:
+    return "0.0.0.0" if args.lan else "127.0.0.1"
+
+
+def _print_lan(session) -> None:
+    for url in session.lan_urls():
+        print(f"🌐 LAN access: {url}")
+
+
 def _load_any(path: str, fmt: str | None) -> Dataset:
     fmt = fmt or detect_format(path)
     print(f"📥 Loading '{path}' (format: {fmt})...")
@@ -141,10 +153,14 @@ def _run_studio(args: argparse.Namespace) -> None:
         model_state["path"] = args.model
 
     use_webview = not args.browser and has_webview()
-    session = launch_app(dataset=None, port=args.port, auto=not use_webview, desktop=not args.browser)
+    session = launch_app(dataset=None, port=args.port, address=_bind_address(args),
+                         auto=not use_webview, desktop=not args.browser)
     print(f"🍈 Guava Studio running at: {session.url}  (offline, Ctrl+C to stop)")
+    _print_lan(session)
     if use_webview:
-        run_webview(session.url)
+        lan = session.lan_urls()
+        # no console under the desktop shortcut, so show the LAN address in the title bar
+        run_webview(session.url, title=f"Guava Studio — LAN: {lan[0]}" if lan else "Guava Studio")
         session.close()
         return
     try:

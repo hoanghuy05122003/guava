@@ -179,7 +179,8 @@ class DatasetManager:
             ]
 
         if category:
-            filtered = [s for s in filtered if any(a.label == category for a in s.annotations)]
+            cats = {c for c in category.split(",") if c}
+            filtered = [s for s in filtered if any(a.label in cats for a in s.annotations)]
 
         similarity_map: dict[str, float] = {}
         if similar_to:

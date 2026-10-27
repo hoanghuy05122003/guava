@@ -965,3 +965,25 @@ loadDatasetInfo = async function () {
   if (state.info) setDirty(state.info.dirty_count || 0, state.info.eval_stale);
   if (!confInitDone) initConfFromEval();
 };
+
+// Toolbar "Show: Label (GT) / Prediction" mirrors the sidebar's Annotation Layers checkboxes
+function setLayerVisible(kind, on) {
+  if (kind === "gt") state.showGt = on; else state.showPred = on;
+  [["layer-gt", "quick-gt"], ["layer-pred", "quick-pred"]][kind === "gt" ? 0 : 1].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = on;
+  });
+  renderGrid();
+  if (state.activeSample) drawLightbox();
+}
+document.addEventListener("DOMContentLoaded", () => {
+  [["quick-gt", "gt"], ["quick-pred", "pred"], ["layer-gt", "gt"], ["layer-pred", "pred"]].forEach(([id, kind]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", (e) => setLayerVisible(kind, e.target.checked));
+  });
+  // Reset turns both layers back on (app.js resets the sidebar checkboxes)
+  const reset = document.getElementById("reset-filters-btn");
+  if (reset) reset.addEventListener("click", () => {
+    ["quick-gt", "quick-pred"].forEach((id) => { const el = document.getElementById(id); if (el) el.checked = true; });
+  });
+});

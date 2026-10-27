@@ -21,9 +21,40 @@ _cache: dict[tuple[str, str, float], Model] = {}
 _lock = threading.Lock()
 
 
+def _saved_dirs_file() -> str:
+    return os.path.join(os.path.expanduser("~"), ".guava", "model_dirs.json")
+
+
+def saved_model_dirs() -> list[str]:
+    """Folders added with "Scan another folder", most recent first."""
+    import json
+    try:
+        with open(_saved_dirs_file(), encoding="utf-8") as f:
+            return [d for d in json.load(f) if isinstance(d, str)]
+    except (OSError, ValueError):
+        return []
+
+
+def remember_model_dir(path: str) -> None:
+    import json
+    path = os.path.normpath(path)
+    dirs = [path] + [d for d in saved_model_dirs() if os.path.normcase(d) != os.path.normcase(path)]
+    os.makedirs(os.path.dirname(_saved_dirs_file()), exist_ok=True)
+    with open(_saved_dirs_file(), "w", encoding="utf-8") as f:
+        json.dump(dirs[:20], f, indent=1)
+
+
+def forget_model_dir(path: str) -> None:
+    import json
+    dirs = [d for d in saved_model_dirs() if os.path.normcase(d) != os.path.normcase(os.path.normpath(path))]
+    with open(_saved_dirs_file(), "w", encoding="utf-8") as f:
+        json.dump(dirs, f, indent=1)
+
+
 def model_dirs() -> list[str]:
+    """Scanned folders: remembered ones first, then GUAVA_MODEL_DIRS, then the defaults."""
     env = os.environ.get("GUAVA_MODEL_DIRS", "")
-    dirs = [d for d in env.split(os.pathsep) if d] + DEFAULT_MODEL_DIRS
+    dirs = saved_model_dirs() + [d for d in env.split(os.pathsep) if d] + DEFAULT_MODEL_DIRS
     return [d for d in dict.fromkeys(dirs) if os.path.isdir(d)]
 
 

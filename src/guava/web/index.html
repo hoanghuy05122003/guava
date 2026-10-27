@@ -201,6 +201,11 @@
             <button class="size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
             <button class="size-btn" data-size="large" onclick="setGridSize('large')">L</button>
           </div>
+          <div class="layer-quick" title="Show or hide the ground-truth labels / the model predictions">
+            <span class="size-label">Show:</span>
+            <label class="lq lq-gt"><input type="checkbox" id="quick-gt" checked> Label (GT)</label>
+            <label class="lq lq-pred"><input type="checkbox" id="quick-pred" checked> Prediction</label>
+          </div>
           <div class="seg" id="grid-view-seg" title="How each card shows labels and predictions">
             <button data-view="overlay" class="active" onclick="setGridView('overlay')">Overlay</button>
             <button data-view="split" onclick="setGridView('split')">Label ⟷ Prediction</button>
@@ -581,9 +586,11 @@ session.wait()</code></pre>
           <summary>Models found on this machine <span id="model-found-count" class="cat-count-sub">0</span></summary>
           <div style="display:flex; gap:8px; margin:8px 0;">
             <input type="text" id="model-search" class="guava-input" placeholder="Filter by name / folder…" oninput="renderModelList()" style="flex:1;">
-            <input type="text" id="model-scan-dir" class="guava-input" placeholder="Scan another folder…" style="flex:1;">
+            <input type="text" id="model-scan-dir" class="guava-input" placeholder="Add a folder with weights (Enter), e.g. D:\Coding" style="flex:1;" onkeydown="if (event.key === 'Enter') scanModels()">
+            <button class="secondary-btn" onclick="openFolderBrowser('model-scan-dir')" title="Pick the folder">📂</button>
             <button class="secondary-btn" onclick="scanModels()">Scan</button>
           </div>
+          <div id="model-dirs" class="model-dirs"></div>
           <div id="model-list" class="model-list"></div>
         </details>
 

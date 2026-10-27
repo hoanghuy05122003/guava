@@ -102,8 +102,11 @@ function renderEvalFilters(info) {
   Object.entries(preds).forEach(([label, count]) => {
     if ((info.categories || {})[label] !== undefined || !catBox) return;
     const chip = document.createElement("div");
-    chip.className = "filter-chip";
+    chip.className = `filter-chip ${state.activeCategories.has(label) ? "active" : ""}`;
+    chip.id = `cat-chip-${label}`;
+    chip.title = "Only predicted, no label of this class in the dataset. Click to show only this class's boxes.";
     chip.innerHTML = `<span class="chip-label-left"><span class="cat-color-dot" style="background-color:${getCategoryColor(label)}"></span><span>${escapeHtml(label)} <em style="color:var(--color-pred)">pred</em></span></span><span class="chip-count">${count}</span>`;
+    chip.addEventListener("click", () => toggleCategory(label));
     catBox.appendChild(chip);
   });
 }
@@ -159,23 +162,52 @@ function updateModelModeHint() {
       "Lighter, but low-confidence boxes are lost, so mAP comes out <b>lower</b> than <code>ultralytics val</code>.";
 }
 
-async function scanModels() {
-  const dir = document.getElementById("model-scan-dir").value.trim();
+/** Rescan the model folders. `dir` (scan box) is added to the remembered folders; `forget` removes one. */
+async function scanModels(forget = "") {
+  const input = document.getElementById("model-scan-dir");
+  const dir = forget ? "" : input.value.trim();
   const list = document.getElementById("model-list");
   list.innerHTML = `<div style="padding:12px; color:var(--text-muted); font-size:12px;">Scanning for .pt / .onnx / .engine files…</div>`;
   try {
-    const data = await api(`/api/models${dir ? `?dir=${encodeURIComponent(dir)}` : ""}`);
+    const q = new URLSearchParams();
+    if (dir) q.set("dir", dir);
+    if (forget) q.set("forget", forget);
+    const data = await api(`/api/models${q.toString() ? `?${q}` : ""}`);
     modelUi.models = data.models || [];
+    modelUi.dirs = data.dirs || [];
+    modelUi.savedDirs = (data.saved || []).map(normPath);
+    modelUi.added = data.added || modelUi.added || "";
+    if (data.added) {
+      input.value = "";
+      const n = modelUi.models.filter((m) => inFolder(m.path, data.added)).length;
+      toast(n ? `${n} weight file${n > 1 ? "s" : ""} found in ${data.added} — remembered for next time` : `No .pt / .onnx / .engine file in ${data.added} (searched 5 levels deep)`, !n);
+    }
+    renderModelDirs();
     renderModelList();
   } catch (e) {
     list.innerHTML = `<div style="padding:12px; color:#c53030; font-size:12px;">${escapeHtml(e.message)}</div>`;
+    toast(e.message, true);
   }
+}
+
+const normPath = (p) => (p || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+const inFolder = (path, dir) => !!dir && normPath(path).startsWith(normPath(dir) + "\\");
+
+function renderModelDirs() {
+  const box = document.getElementById("model-dirs");
+  if (!box) return;
+  box.innerHTML = (modelUi.dirs || []).map((d) => `
+    <span class="model-dir ${normPath(d) === normPath(modelUi.added) ? "added" : ""}" title="${escapeHtml(d)}">📁 ${escapeHtml(d)}
+      ${(modelUi.savedDirs || []).includes(normPath(d)) ? `<button class="model-dir-x" data-dir="${escapeHtml(d)}" title="Stop scanning this folder">×</button>` : ""}</span>`).join("");
+  box.querySelectorAll(".model-dir-x").forEach((b) => b.addEventListener("click", () => scanModels(b.dataset.dir)));
 }
 
 function renderModelList() {
   const q = document.getElementById("model-search").value.trim().toLowerCase();
   const current = document.getElementById("model-path").value.trim();
-  const items = modelUi.models.filter((m) => !q || m.path.toLowerCase().includes(q));
+  // weights of the folder just added come first
+  const items = modelUi.models.filter((m) => !q || m.path.toLowerCase().includes(q))
+    .sort((a, b) => (modelUi.added ? inFolder(b.path, modelUi.added) - inFolder(a.path, modelUi.added) : 0));
   document.getElementById("model-found-count").textContent = modelUi.models.length;
   const list = document.getElementById("model-list");
   if (!items.length) {

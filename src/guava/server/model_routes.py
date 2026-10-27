@@ -54,11 +54,23 @@ async def endpoint_system(request: Request) -> JSONResponse:
 
 
 async def endpoint_list_models(request: Request) -> JSONResponse:
-    from guava.models import discover_models, model_dirs
-    extra = request.query_params.get("dir", "").strip().strip('"')
-    dirs = [extra] if extra and os.path.isdir(extra) else model_dirs()
+    """Weights in the remembered + default folders. `dir` adds a folder (or a weights
+    file's folder) to the remembered list first; `forget` removes one."""
+    from guava.models.registry import discover_models, forget_model_dir, model_dirs, remember_model_dir, saved_model_dirs
+    extra = request.query_params.get("dir", "").strip().strip('"').strip()
+    forget = request.query_params.get("forget", "").strip()
+    if forget:
+        forget_model_dir(forget)
+    if extra:
+        if os.path.isfile(extra):
+            extra = os.path.dirname(extra)
+        if not os.path.isdir(extra):
+            return _err(f"Folder not found: {extra}", 404)
+        remember_model_dir(extra)
+    dirs = model_dirs()
     found = await asyncio.to_thread(discover_models, dirs)
-    return JSONResponse({"dirs": dirs, "models": found})
+    return JSONResponse({"dirs": dirs, "saved": saved_model_dirs(), "models": found,
+                         "added": os.path.normpath(extra) if extra else None})
 
 
 async def endpoint_inspect_model(request: Request) -> JSONResponse:

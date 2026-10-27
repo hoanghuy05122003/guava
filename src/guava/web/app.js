@@ -220,16 +220,7 @@ async function loadDatasetInfo() {
         </span>
         <span class="chip-count">${count}</span>
       `;
-      chip.addEventListener("click", () => {
-        if (state.activeCategories.has(catName)) {
-          state.activeCategories.delete(catName);
-        } else {
-          state.activeCategories.add(catName);
-        }
-        updateFilterUI();
-        updateActiveFiltersBar();
-        renderGrid();
-      });
+      chip.addEventListener("click", () => toggleCategory(catName));
       catsContainer.appendChild(chip);
     });
 
@@ -513,7 +504,8 @@ function drawDetections(ctx, detections, imgW, imgH, isPred) {
     // Draw Label Badge (preds above the box, GT below it, so both stay readable)
     if (state.showLabels) {
       ctx.font = `bold ${Math.round(13 * scale)}px system-ui, sans-serif`;
-      let text = ms ? `${ms.tag}·${det.label}` : det.label;
+      // GT·label for the ground truth, A·label for model A, so the two never look alike
+      let text = isPred ? `${ms ? ms.tag : det.model ? modelLetter(det.model) : "P"}·${det.label}` : `GT·${det.label}`;
       if (isPred && det.confidence !== undefined) {
         text += ` ${(det.confidence * 100).toFixed(0)}%`;
       }
@@ -743,7 +735,35 @@ function updateActiveFiltersBar() {
     bar.appendChild(chip);
   }
 
+  if (state.activeCategories.size) {
+    hasFilters = true;
+    const chip = document.createElement("span");
+    chip.className = "filter-chip-active";
+    chip.style.borderColor = "#8b5cf6";
+    chip.title = "Boxes of other classes are hidden";
+    chip.innerHTML = `<span>🎨 Class: <strong>${[...state.activeCategories].map(escapeHtml).join(", ")}</strong></span> <span class="filter-chip-remove" onclick="clearCategoryFilter()">&times;</span>`;
+    bar.appendChild(chip);
+  }
+
   bar.style.display = hasFilters ? "flex" : "none";
+}
+
+/** Class chips: keep the images that have one of the chosen classes and draw only those classes' boxes. */
+function toggleCategory(name) {
+  if (state.activeCategories.has(name)) state.activeCategories.delete(name);
+  else state.activeCategories.add(name);
+  updateFilterUI();
+  updateActiveFiltersBar();
+  state.page = 1;
+  loadSamples();
+}
+
+function clearCategoryFilter() {
+  state.activeCategories.clear();
+  updateFilterUI();
+  updateActiveFiltersBar();
+  state.page = 1;
+  loadSamples();
 }
 
 function removeSimilarFilter() {

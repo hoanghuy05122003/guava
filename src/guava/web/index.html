@@ -265,6 +265,22 @@
           <button class="icon-btn close" onclick="closeLightbox()">&times;</button>
         </div>
       </div>
+      <div class="lb-toolbar">
+        <span class="lbt-label">Show</span>
+        <div id="lb-layers" class="lb-layers"></div>
+        <button class="lbt-btn" id="lb-errors-btn" onclick="toggleErrorsOnly()" title="X: hide boxes every model got right">⚠ Only errors</button>
+        <span class="lbt-sep"></span>
+        <span class="lbt-label">Tags</span>
+        <div class="seg seg-sm" id="lb-tag-seg" title="T: switch">
+          <button data-tag="num" onclick="setTagMode('num')">① Number</button>
+          <button data-tag="full" onclick="setTagMode('full')">Name</button>
+        </div>
+        <span class="lbt-sep"></span>
+        <button class="lbt-btn" onclick="fitBoxes()" title="F: zoom to the boxes">🎯 Zoom to boxes</button>
+        <button class="lbt-btn" onclick="stepError(-1)" title="Shift+N: previous error">◀</button>
+        <span class="lbt-err" id="lb-err-pos">errors</span>
+        <button class="lbt-btn" onclick="stepError(1)" title="N: next error, zoomed in">▶</button>
+      </div>
 
       <div class="lightbox-body">
         <div class="lightbox-canvas-wrapper" id="canvas-wrapper">
@@ -280,12 +296,7 @@
           </div>
 
           <div id="lb-edit-panel" class="lb-edit-panel" style="display:none;"></div>
-          <div id="lb-diff" class="lb-diff"></div>
-
-          <h3>Ground truth <span class="cat-count-sub" id="lb-gt-count">0</span></h3>
-          <div class="lb-annotations-list" id="lb-gt-list"></div>
-          <h3 style="margin-top:14px;">Predictions <span class="cat-count-sub" id="lb-pred-count">0</span></h3>
-          <div class="lb-annotations-list" id="lb-pred-list"></div>
+          <div id="lb-panel" class="lb-panel"></div>
         </div>
       </div>
     </div>

@@ -129,7 +129,9 @@ Wide images (line scan, panoramas: width > 1.8 × height) stack the panels verti
 
 ![Lightbox, label vs prediction](docs/images/lightbox-split.png)
 
-Click a card to open it. The image is fitted to the window; the mouse wheel zooms around the cursor, drag pans, **Fit** (or `0`) resets, `←` / `→` go to the previous / next image. The header switches **Overlay** / **Label ⟷ Prediction** (`S`). In the split view all panels zoom and pan together.
+Click a card to open it. When the boxes are small it opens zoomed onto them (`F`); otherwise the image is fitted to the window; the mouse wheel zooms around the cursor, drag pans, **Fit** (or `0`) resets, `←` / `→` go to the previous / next image. The header switches **Overlay** / **Label ⟷ Prediction** (`S`). In the split view all panels zoom and pan together.
+
+Boxes are drawn as thin outlines over a dark halo: label boxes solid with a number badge (①, red ring = a model missed it), predictions dashed with their model letter. Hover a box, or switch **Tags** to *Name*, to see the class. The toolbar under the header switches layers (**GT · A · B**), **⚠ Only errors** and steps through the errors one by one (`N`).
 
 The sidebar starts with **Label vs prediction**: per model `✓ correct · FP · missed`, then a table with one row per label box and one column per model (`✓`, `✗ missed`, or `≠ truck` when the model found it as another class), and each model's extra boxes that have no label. Hover a row to highlight that box on the image.
 
@@ -235,7 +237,8 @@ Pick the target format (YOLO, COCO, Pascal VOC, ImageFolder or Guava native JSON
 | Where | Keys |
 |---|---|
 | Main window | `M` Run Model · `E` Evaluate |
-| Lightbox | `←` / `→` previous / next · `S` overlay ⟷ side by side · `E` edit labels · `0` fit · `Esc` close |
+| Grid | `Ctrl` + mouse wheel over a card zooms into that thumbnail (leave the card to reset) |
+| Lightbox | mouse wheel zoom · `←` / `→` previous / next · `S` overlay ⟷ side by side · `E` edit labels · `F` zoom to the boxes · `N` / `Shift+N` next / previous error (zoomed in) · `X` only errors · `T` number ⟷ name tags · `0` whole image · `Esc` close |
 | Label editor | `1`–`9` class · `Del` delete · arrows nudge · `Ctrl+Z` undo · `Ctrl+S` save labels · `Space`+drag pan |
 
 ---

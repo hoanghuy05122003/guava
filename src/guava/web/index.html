@@ -27,8 +27,8 @@
     </div>
 
     <div class="header-actions">
-      <button class="nav-btn highlight" onclick="openModal('load-dataset')">
-        <span class="btn-icon">📂</span> Load Dataset
+      <button class="nav-btn highlight" onclick="openModal('load-dataset')" title="Load a dataset">
+        <span class="btn-icon">📂</span> Load
       </button>
       <button class="nav-btn highlight-model" onclick="openModal('model')">
         <span class="btn-icon">🤖</span> Run Model
@@ -36,26 +36,32 @@
       <button class="nav-btn" onclick="openModal('eval')">
         <span class="btn-icon">📈</span> Evaluate
       </button>
+      <button class="nav-btn" onclick="openModal('compare')" title="Metrics, confusion matrices and boxes of two models side by side">
+        <span class="btn-icon">⚖️</span> Compare
+      </button>
+      <button class="nav-btn save-labels-btn" id="save-labels-btn" style="display:none;" onclick="saveLabels()" title="Write edited labels back to the dataset's label files (Ctrl+S)">
+        <span class="btn-icon">💾</span> Save labels <span class="dirty-count" id="dirty-count">0</span>
+      </button>
       <button class="nav-btn" onclick="document.getElementById('quick-file-input').click()" title="Pick or drag & drop images anywhere">
         <span class="btn-icon">⚡</span> Quick Check
       </button>
       <button class="nav-btn" onclick="saveWorkspace()" title="Save dataset + predictions + tags to a .guava.json workspace">
-        <span class="btn-icon">💾</span> Save
+        <span class="btn-icon">💾</span> Workspace
       </button>
-      <button class="nav-btn" onclick="openModal('converter')">
-        <span class="btn-icon">🔄</span> Convert & Export
+      <button class="nav-btn" onclick="openModal('converter')" title="Convert & export to COCO / YOLO / VOC / ImageFolder">
+        <span class="btn-icon">🔄</span> Export
       </button>
-      <button class="nav-btn" onclick="openModal('validator')">
-        <span class="btn-icon">📊</span> Quality Audit
+      <button class="nav-btn" onclick="openModal('validator')" title="Dataset quality audit">
+        <span class="btn-icon">📊</span> Audit
       </button>
-      <button class="nav-btn" onclick="openModal('brain')">
-        <span class="btn-icon">🧠</span> Brain AI Studio
+      <button class="nav-btn" onclick="openModal('brain')" title="Brain AI Studio: duplicates, uniqueness, similarity">
+        <span class="btn-icon">🧠</span> Brain AI
       </button>
-      <button class="nav-btn" onclick="openModal('formats')">
-        <span class="btn-icon">📁</span> Formats
+      <button class="nav-btn icon-only" onclick="openModal('formats')" title="Supported dataset formats">
+        <span class="btn-icon">📁</span>
       </button>
-      <button class="nav-btn" onclick="openModal('sdk')">
-        <span class="btn-icon">💻</span> SDK
+      <button class="nav-btn icon-only" onclick="openModal('sdk')" title="Python SDK snippets">
+        <span class="btn-icon">💻</span>
       </button>
     </div>
   </header>
@@ -195,6 +201,10 @@
             <button class="size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
             <button class="size-btn" data-size="large" onclick="setGridSize('large')">L</button>
           </div>
+          <div class="seg" id="grid-view-seg" title="How each card shows labels and predictions">
+            <button data-view="overlay" class="active" onclick="setGridView('overlay')">Overlay</button>
+            <button data-view="split" onclick="setGridView('split')">Label ⟷ Prediction</button>
+          </div>
           <button class="toggle-btn" id="toggle-labels-btn" onclick="toggleLabels()">Labels: ON</button>
         </div>
       </div>
@@ -232,14 +242,21 @@
     <div class="lightbox-container">
       <div class="lightbox-header">
         <div class="lightbox-info">
+          <button class="icon-btn" onclick="navigateLightbox(-1)" title="Previous image (←)">&larr;</button>
+          <button class="icon-btn" onclick="navigateLightbox(1)" title="Next image (→)">&rarr;</button>
           <span class="lb-title" id="lb-sample-id">Sample Detail</span>
           <span class="lb-dim" id="lb-sample-dim">640x480</span>
           <span class="lb-subset" id="lb-sample-subset">val</span>
         </div>
         <div class="lightbox-actions">
-          <button class="icon-btn" onclick="zoomCanvas(1.25)" title="Zoom In">+</button>
-          <button class="icon-btn" onclick="zoomCanvas(0.8)" title="Zoom Out">&minus;</button>
-          <button class="icon-btn" onclick="resetZoom()" title="Reset Zoom">100%</button>
+          <div class="seg" id="lb-view-seg" title="S: switch view">
+            <button data-view="overlay" class="active" onclick="setLbView('overlay')">Overlay</button>
+            <button data-view="split" onclick="setLbView('split')">Label ⟷ Prediction</button>
+          </div>
+          <button class="lb-edit-btn" id="lb-edit-btn" onclick="toggleLbEdit()" title="E: draw / move / resize / relabel ground-truth boxes">✏️ Edit labels</button>
+          <button class="icon-btn" onclick="zoomCanvas(1.25)" title="Zoom in (mouse wheel)">+</button>
+          <button class="icon-btn" onclick="zoomCanvas(0.8)" title="Zoom out">&minus;</button>
+          <button class="icon-btn" style="width:auto; padding:0 8px;" onclick="resetZoom()" title="Fit the whole image (0)">Fit</button>
           <button class="icon-btn close" onclick="closeLightbox()">&times;</button>
         </div>
       </div>
@@ -247,6 +264,7 @@
       <div class="lightbox-body">
         <div class="lightbox-canvas-wrapper" id="canvas-wrapper">
           <canvas id="lightbox-canvas"></canvas>
+          <div class="lb-hint" id="lb-hint"></div>
         </div>
 
         <div class="lightbox-sidebar">
@@ -256,11 +274,13 @@
             <button class="lb-action-btn" style="color:#ef4444;" onclick="deleteCurrentSample()" title="Delete this sample">🗑️ Delete</button>
           </div>
 
-          <h3>Annotations Inspector</h3>
-          <div class="lb-stats-summary" id="lb-ann-count">0 Detections</div>
-          <div class="lb-annotations-list" id="lb-annotations-list">
-            <!-- Populated dynamically with editable labels and delete buttons -->
-          </div>
+          <div id="lb-edit-panel" class="lb-edit-panel" style="display:none;"></div>
+          <div id="lb-diff" class="lb-diff"></div>
+
+          <h3>Ground truth <span class="cat-count-sub" id="lb-gt-count">0</span></h3>
+          <div class="lb-annotations-list" id="lb-gt-list"></div>
+          <h3 style="margin-top:14px;">Predictions <span class="cat-count-sub" id="lb-pred-count">0</span></h3>
+          <div class="lb-annotations-list" id="lb-pred-list"></div>
         </div>
       </div>
     </div>
@@ -673,8 +693,21 @@ session.wait()</code></pre>
     </div>
   </div>
   <input type="file" id="quick-file-input" accept="image/*" multiple style="display:none;" onchange="quickCheckFiles(this.files); this.value='';">
+  <!-- ⚖️ Compare Models Modal -->
+  <div id="modal-compare" class="modal-backdrop">
+    <div class="modal-box xlarge">
+      <div class="modal-header">
+        <h2>⚖️ Compare Models — metrics, confusion matrices, boxes</h2>
+        <button class="modal-close" onclick="closeModal('compare')">&times;</button>
+      </div>
+      <div class="modal-body" id="compare-body"></div>
+    </div>
+  </div>
+
   <script src="/web/app.js"></script>
   <script src="/web/model.js"></script>
   <script src="/web/qc.js"></script>
+  <script src="/web/editor.js"></script>
+  <script src="/web/compare.js"></script>
 </body>
 </html>

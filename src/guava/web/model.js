@@ -308,6 +308,7 @@ async function pollJob() {
     const ev = r.eval ? ` · P ${pct(r.eval.precision)} · R ${pct(r.eval.recall)} · mAP50 ${pct(r.eval.mAP50)}` : "";
     text.textContent = `${job.status === "cancelled" ? "Cancelled" : "Done"}: ${r.processed}/${r.total} images · ${r.detections} detections · ${r.avg_ms} ms/img${r.failed ? ` · ${r.failed} failed` : ""}${ev} (${job.elapsed}s)`;
     toast(`Inference ${job.status}: ${r.detections ?? 0} detections in ${job.elapsed}s`);
+    if (state.gridView !== "split") toast("Tip: click \"Label ⟷ Prediction\" above the grid to see the label and each model side by side.");
     state.showPred = true;
     const predToggle = document.getElementById("layer-pred");
     if (predToggle) predToggle.checked = true;
@@ -635,6 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea, select")) return;
+  if (lightboxOpen()) return;  // the lightbox has its own shortcuts (editor.js)
   if (e.key === "m" && !e.ctrlKey) openModal("model");
   if (e.key === "e" && !e.ctrlKey) openModal("eval");
 });

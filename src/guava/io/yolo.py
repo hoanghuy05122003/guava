@@ -87,6 +87,8 @@ def load_yolo(
             filepath=img_path,
             subset=subset,
         )
+        # where edited labels are written back (also for images that had no label file yet)
+        sample.fields["label_path"] = label_path
 
         if os.path.exists(label_path):
             with open(label_path, "r", encoding="utf-8") as f:

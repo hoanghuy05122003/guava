@@ -41,6 +41,9 @@ class DatasetManager:
         self.last_eval: dict[str, Any] | None = None
         self.evals: dict[str, dict[str, Any]] = {}  # per-model eval reports
         self.dataset_path: str | None = None
+        self.dirty: set[str] = set()  # samples whose ground truth was edited and not yet saved
+        self.eval_stale = False  # ground truth changed after the last full evaluation
+        self.saved_classes: list[str] = []  # class order of the label files on disk
         if dataset is not None:
             self.set_dataset(dataset)
 
@@ -49,6 +52,9 @@ class DatasetManager:
         self.dataset_path = path
         self.last_eval = None
         self.evals = {}
+        self.dirty = set()
+        self.eval_stale = False
+        self.saved_classes = list(dataset.schema.class_names)
 
     def pred_models(self) -> list[dict[str, Any]]:
         """Models with results in the dataset + their last eval summary."""
@@ -86,7 +92,22 @@ class DatasetManager:
             "active_model": (self.last_eval or {}).get("model"),
             "format": self.dataset.format or "native",
             "path": self.dataset_path,
+            "classes": self._class_list(),
+            "dirty_count": len(self.dirty),
+            "eval_stale": self.eval_stale,
+            "can_save_labels": any("label_path" in s.fields for s in self.dataset.samples),
         }
+
+    def _class_list(self) -> list[str]:
+        """Classes to offer in the label editor: schema order, then any other GT label."""
+        names = list(self.dataset.schema.class_names) if self.dataset else []
+        seen = set(names)
+        for s in self.dataset.samples if self.dataset else []:
+            for a in s.ground_truth:
+                if a.label not in seen:
+                    seen.add(a.label)
+                    names.append(a.label)
+        return names
 
     def query(
         self,
@@ -339,6 +360,9 @@ def _ann_out(a: Annotation, s: Sample, model: str | None = None) -> dict[str, An
     if is_pred:
         from guava.models.apply import ann_model
         out["model"] = ann_model(a)
+    elif isinstance(a.attributes.get("eval_models"), dict):
+        # TP / FN of this object for every evaluated model (side-by-side compare)
+        out["eval_by"] = dict(a.attributes["eval_models"])
     if isinstance(a, BboxAnnotation):
         b = a
         w, h = s.metadata.width, s.metadata.height
@@ -856,8 +880,11 @@ async def endpoint_annotation_action(request: Request) -> JSONResponse:
         if not target_ann:
             return JSONResponse({"status": "error", "message": "Annotation not found"}, status_code=404)
 
+        is_gt = target_ann.attributes.get("kind") != "prediction"
         if action == "delete":
             sample.annotations.remove(target_ann)
+            if is_gt:
+                _after_gt_change(sample)
             return JSONResponse({"status": "ok", "message": f"Deleted annotation {ann_id}"})
 
         elif action == "edit":
@@ -865,11 +892,142 @@ async def endpoint_annotation_action(request: Request) -> JSONResponse:
             if new_label:
                 target_ann.label = new_label
                 dataset_manager.dataset.schema.get_or_create(new_label)
+                if is_gt:
+                    _after_gt_change(sample)
             return JSONResponse({"status": "ok", "message": f"Updated annotation {ann_id}"})
 
         return JSONResponse({"status": "error", "message": f"Unknown action: {action}"}, status_code=400)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+def _after_gt_change(sample: Sample) -> None:
+    """Ground truth of `sample` changed: mark it unsaved and refresh its TP/FP/FN for every
+    evaluated model (dataset-level metrics stay as they were until the next full evaluation)."""
+    from guava.eval import evaluate_detections
+    from guava.models import sample_ran
+    from guava.server.model_routes import eval_state
+    mgr = dataset_manager
+    mgr.dirty.add(sample.id)
+    if not mgr.evals:
+        return
+    mgr.eval_stale = True
+    for name in list(mgr.evals):
+        if sample_ran(sample, name):
+            evaluate_detections(mgr.dataset, samples=[sample], model=name, **eval_state)
+
+
+def _clamp01(v: Any) -> float:
+    return min(1.0, max(0.0, float(v)))
+
+
+async def endpoint_set_ground_truth(request: Request) -> JSONResponse:
+    """Replace a sample's box ground truth with the editor's list.
+
+    body: {sample_id, boxes: [{id?, label, bbox: [x, y, w, h] normalized}], model?, min_conf?}
+    Non-box ground truth (polygons, classification labels) is kept as it is.
+    """
+    try:
+        body = await request.json()
+        mgr = dataset_manager
+        sample = mgr.get_sample(body.get("sample_id", ""))
+        if sample is None or mgr.dataset is None:
+            return JSONResponse({"status": "error", "message": "Sample not found"}, status_code=404)
+        old = {a.id: a for a in sample.ground_truth if isinstance(a, BboxAnnotation)}
+        new_boxes: list[Annotation] = []
+        for b in body.get("boxes", []):
+            label = str(b.get("label") or "").strip()
+            x, y, w, h = (float(v) for v in b["bbox"])
+            x, y = _clamp01(x), _clamp01(y)
+            w, h = min(_clamp01(w), 1.0 - x), min(_clamp01(h), 1.0 - y)
+            if not label or w <= 0 or h <= 0:
+                continue
+            prev = old.get(b.get("id") or "")
+            ann = BboxAnnotation(label=label, x=x, y=y, w=w, h=h, is_normalized=True)
+            if prev is not None:
+                ann.id = prev.id
+                ann.attributes = {k: v for k, v in prev.attributes.items() if not k.startswith("eval")}
+            mgr.dataset.schema.get_or_create(label)
+            new_boxes.append(ann)
+        kept = [a for a in sample.annotations if not (isinstance(a, BboxAnnotation) and a.id in old)]
+        sample.annotations = new_boxes + kept
+        _after_gt_change(sample)
+        out = serialize_sample(sample, float(body.get("min_conf") or 0.0), model=body.get("model") or None)
+        return JSONResponse({"status": "ok", "sample": out, "dirty_count": len(mgr.dirty), "eval_stale": mgr.eval_stale})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+def _backup(path: str, root: str, base: str | None) -> None:
+    """Copy `path` into the backup folder, keeping its location relative to the dataset folder."""
+    if not os.path.exists(path):
+        return
+    rel = os.path.basename(path)
+    if base:
+        try:
+            r = os.path.relpath(os.path.abspath(path), os.path.abspath(base))
+            if not r.startswith(".."):
+                rel = r
+        except ValueError:  # other drive
+            pass
+    dest = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copy2(path, dest)
+
+
+async def endpoint_save_labels(request: Request) -> JSONResponse:
+    """Write edited ground truth back to the YOLO label files it was loaded from.
+
+    Every file that gets overwritten is copied to ~/.guava/backups/<time>/ first.
+    """
+    import time
+    mgr = dataset_manager
+    if mgr.dataset is None:
+        return JSONResponse({"status": "error", "message": "No dataset loaded"}, status_code=400)
+    if not mgr.dirty:
+        return JSONResponse({"status": "ok", "written": 0, "message": "Nothing to save"})
+    samples = [s for s in (mgr.get_sample(i) for i in sorted(mgr.dirty)) if s is not None]
+    no_path = [s.id for s in samples if not s.fields.get("label_path")]
+    if no_path:
+        return JSONResponse({"status": "error", "message": (
+            f"{len(no_path)} edited images were not loaded from YOLO label files, so there is nowhere to write "
+            "them back. Use 💾 Save (workspace) or 🔄 Convert & Export instead.")}, status_code=400)
+
+    classes = list(mgr.saved_classes)
+    used = sorted({a.label for s in samples for a in s.ground_truth if isinstance(a, BboxAnnotation)})
+    new_classes = [c for c in used if c not in classes]
+    backup_root = os.path.join(os.path.expanduser("~"), ".guava", "backups", time.strftime("%Y%m%d-%H%M%S"))
+    if new_classes:
+        classes_txt = os.path.join(mgr.dataset_path or "", "classes.txt") if mgr.dataset_path else ""
+        if not classes_txt or not os.path.exists(classes_txt):
+            return JSONResponse({"status": "error", "message": (
+                f"New classes {', '.join(new_classes)} are not in the dataset's class list. Add them to "
+                "data.yaml (names) yourself, reload the dataset, then save again.")}, status_code=400)
+        _backup(classes_txt, backup_root, mgr.dataset_path)
+        classes += new_classes
+        with open(classes_txt, "w", encoding="utf-8") as f:
+            f.write("".join(f"{c}\n" for c in classes))
+        mgr.saved_classes = classes
+
+    index = {c: i for i, c in enumerate(classes)}
+    written = 0
+    for s in samples:
+        path = s.fields["label_path"]
+        _backup(path, backup_root, mgr.dataset_path)
+        w, h = s.metadata.width, s.metadata.height
+        lines = []
+        for a in s.ground_truth:
+            if not isinstance(a, BboxAnnotation):
+                continue
+            b = a if a.is_normalized else a.to_normalized(w, h)
+            lines.append(f"{index[a.label]} {b.x + b.w / 2:.6f} {b.y + b.h / 2:.6f} {b.w:.6f} {b.h:.6f}\n")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        written += 1
+    mgr.dirty.clear()
+    msg = f"Saved labels of {written} images" + (f" (new classes: {', '.join(new_classes)})" if new_classes else "")
+    return JSONResponse({"status": "ok", "written": written, "backup": backup_root, "message": msg})
 
 
 # ── Starlette Application Setup ───────────────────────────────────────────────
@@ -891,6 +1049,8 @@ routes = [
     Route("/api/brain/compute_uniqueness", endpoint_compute_uniqueness, methods=["POST"]),
     Route("/api/samples/action", endpoint_samples_action, methods=["POST"]),
     Route("/api/annotations/action", endpoint_annotation_action, methods=["POST"]),
+    Route("/api/annotations/set", endpoint_set_ground_truth, methods=["POST"]),
+    Route("/api/labels/save", endpoint_save_labels, methods=["POST"]),
     *model_routes,
     Mount("/web", StaticFiles(directory=WEB_DIR), name="web"),
 ]

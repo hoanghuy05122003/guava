@@ -116,39 +116,7 @@ function initEventListeners() {
     loadSamples();
   });
 
-  // Lightbox Pan & Zoom
-  const wrapper = document.getElementById("canvas-wrapper");
-  wrapper.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    zoomCanvas(factor);
-  });
-
-  wrapper.addEventListener("mousedown", (e) => {
-    state.isPanning = true;
-    state.startX = e.clientX - state.panX;
-    state.startY = e.clientY - state.panY;
-  });
-
-  window.addEventListener("mousemove", (e) => {
-    if (!state.isPanning) return;
-    state.panX = e.clientX - state.startX;
-    state.panY = e.clientY - state.startY;
-    drawLightbox();
-  });
-
-  window.addEventListener("mouseup", () => {
-    state.isPanning = false;
-  });
-
-  // Keyboard navigation for Lightbox
-  window.addEventListener("keydown", (e) => {
-    if (document.getElementById("lightbox-modal").style.display === "flex") {
-      if (e.key === "Escape") closeLightbox();
-      if (e.key === "ArrowLeft") navigateLightbox(-1);
-      if (e.key === "ArrowRight") navigateLightbox(1);
-    }
-  });
+  // lightbox mouse / keyboard handling lives in editor.js
 }
 
 function onSortChange(val) {
@@ -389,10 +357,13 @@ function renderGrid() {
     // 3. Canvas Container
     const canvasWrap = document.createElement("div");
     canvasWrap.className = "card-canvas-wrap";
-    canvasWrap.style.cssText = "position:relative; width:100%; aspect-ratio:4/3; background:var(--bg-well); overflow:hidden;";
+    // split view: one 4:3 panel per layer (label + each shown model) side by side
+    const panels = state.gridView === "split" ? splitPanels(sample).length : 1;
+    canvasWrap.style.cssText = `position:relative; width:100%; aspect-ratio:${4 * panels}/3; background:var(--bg-well); overflow:hidden;`;
 
     const canvas = document.createElement("canvas");
     canvas.id = `canvas-${sample.id}`;
+    canvas.className = "card-canvas";
     canvasWrap.appendChild(canvas);
     card.appendChild(canvasWrap);
 
@@ -449,6 +420,11 @@ function drawSampleCanvas(sample, canvas) {
   img.src = sample.thumb_url || sample.media_url || `/api/media/${encodeURIComponent(sample.id)}`;
 
   img.onload = () => {
+    if (state.gridView === "split") {
+      drawSplitCard(sample, canvas, img);  // editor.js
+      return;
+    }
+    // full image, letterboxed by CSS object-fit: contain (never cropped)
     canvas.width = img.naturalWidth || 640;
     canvas.height = img.naturalHeight || 480;
 
@@ -557,179 +533,9 @@ function drawDetections(ctx, detections, imgW, imgH, isPred) {
   });
 }
 
-// ── Lightbox (Deep Inspector & Annotation Editor) ───────────
+// Lightbox viewer / label editor: see editor.js
 
-function openLightbox(sample) {
-  state.activeSample = sample;
-  state.zoom = 1.0;
-  state.panX = 0;
-  state.panY = 0;
-
-  document.getElementById("lb-sample-id").textContent = sample.id;
-  document.getElementById("lb-sample-dim").textContent = `${sample.width}x${sample.height}`;
-  document.getElementById("lb-sample-subset").textContent = sample.subset || "default";
-
-  renderLightboxAnnotations();
-  document.getElementById("lightbox-modal").style.display = "flex";
-  drawLightbox();
-}
-
-function renderLightboxAnnotations() {
-  const sample = state.activeSample;
-  if (!sample) return;
-
-  const listEl = document.getElementById("lb-annotations-list");
-  listEl.innerHTML = "";
-
-  const allDets = [
-    ...(sample.ground_truth || []).map(d => ({ ...d, type: "GT" })),
-    ...(sample.predictions || []).filter(predVisible).map(d => ({ ...d, type: "PRED" }))
-  ];
-
-  document.getElementById("lb-ann-count").textContent = `${allDets.length} Annotations`;
-
-  allDets.forEach((det, i) => {
-    const item = document.createElement("div");
-    item.className = "lb-ann-item";
-    const color = getCategoryColor(det.label);
-    const [x, y, w, h] = (det.bounding_box || [0, 0, 0, 0]).map(v => Number(v).toFixed(det.is_normalized ? 3 : 1));
-
-    item.innerHTML = `
-      <div class="lb-ann-top">
-        <span class="lb-ann-label" style="color:${color}">#${i + 1} ${det.label}</span>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="sample-tag-pill" style="background:${det.type === 'GT' ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}">
-            ${det.type} ${det.type === 'PRED' && det.confidence !== undefined ? `${(det.confidence * 100).toFixed(0)}%` : ''}
-          </span>
-          ${det.type === 'PRED' && det.model && multiModel() ? `<span class="model-swatch" style="background:${modelColor(det.model)}" title="${escapeHtml(det.model)}">${modelLetter(det.model)}</span>` : ''}
-          ${det.eval ? `<span class="eval-pill eval-${det.eval}">${det.eval.toUpperCase()}${det.eval_iou ? ` ${Number(det.eval_iou).toFixed(2)}` : ''}</span>` : ''}
-          <button class="icon-btn" style="padding:2px 5px; font-size:11px;" onclick="editAnnotation('${sample.id}', '${det.id}', '${det.label}')" title="Edit label">✏️</button>
-          <button class="icon-btn" style="padding:2px 5px; font-size:11px; color:#ef4444;" onclick="deleteAnnotation('${sample.id}', '${det.id}')" title="Delete bbox">🗑️</button>
-        </div>
-      </div>
-      <div class="lb-ann-coords">Bbox: [x:${x}, y:${y}, w:${w}, h:${h}]</div>
-    `;
-    listEl.appendChild(item);
-  });
-}
-
-function closeLightbox() {
-  document.getElementById("lightbox-modal").style.display = "none";
-  state.activeSample = null;
-}
-
-function drawLightbox() {
-  if (!state.activeSample) return;
-  const canvas = document.getElementById("lightbox-canvas");
-  const ctx = canvas.getContext("2d");
-  const sample = state.activeSample;
-
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = sample.media_url || `/api/media/${sample.id}`;
-
-  img.onload = () => {
-    canvas.width = (img.naturalWidth || 640) * state.zoom;
-    canvas.height = (img.naturalHeight || 480) * state.zoom;
-    canvas.style.transform = `translate(${state.panX}px, ${state.panY}px)`;
-
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-    if (state.showGt && sample.ground_truth) {
-      drawDetections(ctx, sample.ground_truth, canvas.width, canvas.height, false);
-    }
-    if (state.showPred && sample.predictions) {
-      drawDetections(ctx, sample.predictions, canvas.width, canvas.height, true);
-    }
-  };
-}
-
-function zoomCanvas(factor) {
-  state.zoom = Math.max(0.2, Math.min(5.0, state.zoom * factor));
-  drawLightbox();
-}
-
-function resetZoom() {
-  state.zoom = 1.0;
-  state.panX = 0;
-  state.panY = 0;
-  drawLightbox();
-}
-
-function navigateLightbox(direction) {
-  if (!state.activeSample) return;
-  const currentIndex = state.samples.findIndex(s => s.id === state.activeSample.id);
-  if (currentIndex === -1) return;
-  const newIndex = currentIndex + direction;
-  if (newIndex >= 0 && newIndex < state.samples.length) {
-    openLightbox(state.samples[newIndex]);
-  }
-}
-
-// ── Annotation & Sample Modifications ───────────────────────
-
-async function editAnnotation(sampleId, annId, currentLabel) {
-  const newLabel = prompt(`Edit label for annotation '${annId}':`, currentLabel);
-  if (!newLabel || newLabel.trim() === "" || newLabel === currentLabel) return;
-
-  try {
-    const res = await fetch("/api/annotations/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "edit",
-        sample_id: sampleId,
-        annotation_id: annId,
-        label: newLabel.trim(),
-      })
-    });
-    const result = await res.json();
-    if (result.status === "ok") {
-      // Update locally
-      if (state.activeSample && state.activeSample.id === sampleId) {
-        const ann = (state.activeSample.ground_truth || []).concat(state.activeSample.predictions || []).find(a => a.id === annId);
-        if (ann) ann.label = newLabel.trim();
-        renderLightboxAnnotations();
-        drawLightbox();
-      }
-      renderGrid();
-      await loadDatasetInfo();
-    } else {
-      alert("Error: " + result.message);
-    }
-  } catch (err) {
-    alert("Failed to edit annotation: " + err.message);
-  }
-}
-
-async function deleteAnnotation(sampleId, annId) {
-  if (!confirm(`Delete annotation '${annId}'?`)) return;
-
-  try {
-    const res = await fetch("/api/annotations/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "delete",
-        sample_id: sampleId,
-        annotation_id: annId,
-      })
-    });
-    const result = await res.json();
-    if (result.status === "ok") {
-      if (state.activeSample && state.activeSample.id === sampleId) {
-        state.activeSample.ground_truth = (state.activeSample.ground_truth || []).filter(a => a.id !== annId);
-        state.activeSample.predictions = (state.activeSample.predictions || []).filter(a => a.id !== annId);
-        renderLightboxAnnotations();
-        drawLightbox();
-      }
-      renderGrid();
-      await loadDatasetInfo();
-    }
-  } catch (err) {
-    alert("Failed to delete annotation: " + err.message);
-  }
-}
+// ── Sample Modifications ────────────────────────────────────
 
 async function addTagToCurrentSample() {
   if (!state.activeSample) return;
@@ -975,6 +781,7 @@ function openModal(id) {
   if (id === "validator") loadAuditResults();
   if (id === "model") openModelPanel();
   if (id === "eval") loadEvalReport();
+  if (id === "compare") openCompare();  // compare.js
   if (id === "converter") {
     document.getElementById("convert-selected-count").textContent = state.selectedSamples.size;
   }

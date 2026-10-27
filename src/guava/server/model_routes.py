@@ -193,6 +193,8 @@ def _eval_all(mgr, model: str | None) -> dict[str, Any] | None:
     names = [model] if model else None
     reports = evaluate_models(mgr.dataset, models=names, **eval_state)
     mgr.evals.update(reports)
+    if model is None:
+        mgr.eval_stale = False
     if model:
         mgr.last_eval = reports.get(model)
     elif reports:
@@ -244,7 +246,10 @@ async def endpoint_eval_compare(request: Request) -> JSONResponse:
         rows.append({**m, "type": (rep or {}).get("type"), "classes": (rep or {}).get("classes", []),
                      "run": (rep or {}).get("run"), "warnings": (rep or {}).get("warnings", [])})
     counts = compare_counts(mgr.dataset.samples, a, b) if a and b and a != b else None
-    return JSONResponse({"models": rows, "a": a, "b": b, "counts": counts})
+    # full reports (per-class metrics, confusion matrix) of the two compared models
+    reports = {n: mgr.evals.get(n) for n in (a, b) if n}
+    return JSONResponse({"models": rows, "a": a, "b": b, "counts": counts, "reports": reports,
+                         "eval_stale": mgr.eval_stale, "settings": eval_state})
 
 
 # QC settings shared by /api/eval/qc and the box-level compare filters.

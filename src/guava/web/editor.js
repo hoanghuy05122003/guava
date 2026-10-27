@@ -64,9 +64,12 @@ function gtStatus(det, model) {
 }
 
 function shownPreds(sample, model) {
-  return (sample.predictions || []).filter((p) =>
+  const preds = (sample.predictions || []).filter((p) =>
     (model === undefined || p.model === model) && predVisible(p) &&
     (p.confidence === undefined || p.confidence >= state.minConfidence));
+  // an evaluated model also stores boxes below the operating conf (Evaluation mode keeps
+  // everything down to 0.001): those were not judged, so leave them out of the comparison
+  return model !== undefined && preds.some((p) => p.eval) ? preds.filter((p) => p.eval && p.eval !== "ignored") : preds;
 }
 
 /** Layers shown side by side: the label, then each visible model (at most 3). */
@@ -740,7 +743,7 @@ function renderDiff(s) {
     return `<div class="diff-sum"><span class="model-swatch" style="background:${modelColor(m)}">${modelLetter(m)}</span> <span title="${escapeHtml(m)}">${escapeHtml(m)}</span>: <b>${panelSummary(s, p)}</b></div>`;
   }).join("");
   el.innerHTML = `
-    <div class="diff-title">Label vs prediction <span class="ep-sub">at conf ≥ ${state.minConfidence.toFixed(2)}</span></div>
+    <div class="diff-title">Label vs prediction <span class="ep-sub">at conf ≥ ${Math.max(state.minConfidence, state.evalConf || 0).toFixed(2)}</span></div>
     ${summary}
     ${gts.length ? `<table class="diff-table"><thead><tr><th>Label box</th>${head}</tr></thead><tbody>${rows}</tbody></table>` : ""}
     ${extras}`;
@@ -940,9 +943,25 @@ function resizeBox(b0, handle, dx, dy) {
   new ResizeObserver(() => { if (lightboxOpen()) drawLightbox(); }).observe(wrap);
 })();
 
+// Opening the app on a dataset that already has predictions: start the confidence slider at
+// the evaluation's operating conf, so the boxes below it (kept for mAP) don't flood the view.
+let confInitDone = false;
+async function initConfFromEval() {
+  confInitDone = true;
+  try {
+    const d = await api("/api/eval/report");
+    state.evalConf = (d.settings && d.settings.conf) || 0;
+    if (state.evalConf > 0 && state.minConfidence === 0 && state.info && state.info.prediction_count) {
+      setMinConfidence(state.evalConf);
+      loadSamples();
+    }
+  } catch (e) { /* optional */ }
+}
+
 // keep the dirty indicator in sync with the server after every dataset info refresh
 const _loadDatasetInfoBase = loadDatasetInfo;
 loadDatasetInfo = async function () {
   await _loadDatasetInfoBase();
   if (state.info) setDirty(state.info.dirty_count || 0, state.info.eval_stale);
+  if (!confInitDone) initConfFromEval();
 };

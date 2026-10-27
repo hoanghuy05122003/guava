@@ -415,6 +415,7 @@ async function runEval() {
 
 function syncEvalSettings(st) {
   if (!st) return;
+  state.evalConf = st.conf;
   document.getElementById("eval-iou").value = st.iou;
   document.getElementById("eval-conf").value = st.conf;
   document.getElementById("eval-ignore-missing").checked = !!st.ignore_missing;

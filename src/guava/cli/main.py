@@ -12,6 +12,13 @@ from guava.version import __version__
 
 
 def main() -> None:
+    # pythonw.exe (desktop shortcut) has no console: stdout/stderr are None and the
+    # server's logging would fail and silently stop it.
+    if sys.stdout is None or sys.stderr is None:
+        import os
+        devnull = open(os.devnull, "w", encoding="utf-8")
+        sys.stdout = sys.stdout or devnull
+        sys.stderr = sys.stderr or devnull
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")

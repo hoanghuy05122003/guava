@@ -142,23 +142,38 @@ function drawBadge(ctx, x, y, text, color, u, ring = null, round = true) {
  * bottom-right), "miss" (a label box a model missed: dashed rose). The full name tag
  * is drawn in "Name" tag mode, for the hovered / selected box, or when `full` is set.
  */
+function shapePath(ctx, it, T) {
+  ctx.beginPath();
+  if (it.pts && it.pts.length > 2) {
+    it.pts.forEach(([px, py], i) => {
+      const X = T.ox + px * T.w, Y = T.oy + py * T.h;
+      if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+    });
+    ctx.closePath();
+  } else {
+    const r = toRect(it.b, T);
+    ctx.rect(r.x, r.y, r.w, r.h);
+  }
+}
+
 function drawItem(ctx, it, T, u, full = false) {
   const r = toRect(it.b, T);
   const hot = it.id === lb.hover || it.id === lb.sel;
   const w = hot ? 3 : 1.8;
   const dash = it.kind === "gt" ? [] : [6 * u, 4 * u];
   ctx.setLineDash(dash);
+  shapePath(ctx, it, T);
   ctx.lineWidth = (w + 2.4) * u;
   ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
-  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.stroke();
   ctx.lineWidth = w * u;
   ctx.strokeStyle = it.color;
-  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.stroke();
   ctx.setLineDash([]);
   if (hot) {
     ctx.globalAlpha = 0.16;
     ctx.fillStyle = it.color;
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fill();
     ctx.globalAlpha = 1;
   }
   const named = full || hot || lb.tagMode === "full";
@@ -180,7 +195,7 @@ function predItem(p, s, m, gts) {
   const b = normBox(p, s);
   const over = p.eval === "fp" ? gts.find((g) => g.label !== p.label && iou(b, g.b) >= 0.5) : null;
   return {
-    id: p.id, kind: "pred", model: m, letter: modelLetter(m), label: p.label, conf: p.confidence, ev: p.eval, b,
+    id: p.id, kind: "pred", model: m, letter: modelLetter(m), label: p.label, conf: p.confidence, ev: p.eval, b, pts: p.points,
     wrong: over ? over.label : null,
     color: p.eval === "tp" ? LB_COLORS.tp : p.eval === "fp" ? LB_COLORS.fp : modelColor(m),
   };
@@ -193,7 +208,7 @@ function lbModels() {
 
 /** Label boxes of the open image (the editor's copy, so edits show at once). */
 function lbGtBoxes(s) {
-  return lb.gt.map((g, i) => ({ ...g, n: i + 1, b: g.bbox, src: (s.ground_truth || []).find((d) => d.id === g.id) }));
+  return lb.gt.map((g, i) => ({ ...g, n: i + 1, b: g.bbox, pts: g.pts, src: (s.ground_truth || []).find((d) => d.id === g.id) }));
 }
 
 /** Everything the overlay draws, after layer / class / "only errors" filters. */
@@ -208,7 +223,7 @@ function lbItems(s, errorsOnly = lb.errorsOnly) {
     gts.forEach((g) => {
       const missed = judged.some((m) => g.src && gtStatus(g.src, m) === "fn");
       if (!catPass(g.label) || (errorsOnly && !missed)) return;
-      items.push({ id: g.id, kind: "gt", n: g.n, label: g.label, b: g.b, color: getCategoryColor(g.label), missed });
+      items.push({ id: g.id, kind: "gt", n: g.n, label: g.label, b: g.b, pts: g.pts, color: getCategoryColor(g.label), missed });
     });
   }
   if (state.showPred) {
@@ -229,16 +244,16 @@ function lbItems(s, errorsOnly = lb.errorsOnly) {
 function drawLayer(ctx, sample, panel, T, u, full = false) {
   full = full && state.showLabels;
   const gts = (sample.ground_truth || []).filter((g) => g.bounding_box)
-    .map((g, i) => ({ id: g.id, n: i + 1, label: g.label, b: normBox(g, sample), src: g }));
+    .map((g, i) => ({ id: g.id, n: i + 1, label: g.label, b: normBox(g, sample), pts: g.points, src: g }));
   if (panel.kind === "gt") {
     gts.forEach((g) => {
-      if (catPass(g.label)) drawItem(ctx, { id: g.id, kind: "gt", n: g.n, label: g.label, b: g.b, color: getCategoryColor(g.label) }, T, u, full);
+      if (catPass(g.label)) drawItem(ctx, { id: g.id, kind: "gt", n: g.n, label: g.label, b: g.b, pts: g.pts, color: getCategoryColor(g.label) }, T, u, full);
     });
     return;
   }
   const model = panel.model;
   gts.forEach((g) => {
-    if (catPass(g.label) && gtStatus(g.src, model) === "fn") drawItem(ctx, { id: g.id, kind: "miss", n: g.n, label: g.label, b: g.b, color: LB_COLORS.fn }, T, u, full);
+    if (catPass(g.label) && gtStatus(g.src, model) === "fn") drawItem(ctx, { id: g.id, kind: "miss", n: g.n, label: g.label, b: g.b, pts: g.pts, color: LB_COLORS.fn }, T, u, full);
   });
   shownPreds(sample, model).forEach((p) => {
     if (catPass(p.label) && !(lb.errorsOnly && !full && p.eval !== "fp")) drawItem(ctx, predItem(p, sample, model, gts), T, u, full);
@@ -654,7 +669,10 @@ function toggleLbEdit(on = !lb.edit) {
 
 function loadLbGt() {
   const s = state.activeSample;
-  lb.gt = (s.ground_truth || []).filter((g) => g.bounding_box).map((g) => ({ id: g.id, label: g.label, bbox: normBox(g, s) }));
+  lb.gt = (s.ground_truth || []).filter((g) => g.bounding_box).map((g) => ({
+    id: g.id, label: g.label, bbox: normBox(g, s),
+    pts: g.points ? g.points.map((p) => [...p]) : null, shape: g.shape || null,
+  }));
 }
 
 function snapshot() {
@@ -673,7 +691,7 @@ function undoLb() {
 function commitGt() {
   const sample = state.activeSample;
   if (!sample) return;
-  const boxes = lb.gt.map((g) => ({ id: g.id, label: g.label, bbox: g.bbox }));
+  const boxes = lb.gt.map((g) => ({ id: g.id, label: g.label, bbox: g.bbox, points: g.pts || null, shape: g.shape || null }));
   const selIdx = lb.gt.findIndex((g) => g.id === lb.sel);
   renderLightboxAnnotations();
   drawLightbox();
@@ -783,11 +801,13 @@ function acceptPrediction(predId) {
     toast(`Label box relabeled to "${p.label}"`);
   } else if (over) {
     over.g.bbox = b;
+    over.g.pts = p.points ? p.points.map((q) => [...q]) : null;
+    over.g.shape = p.points ? (p.shape || null) : null;
     lb.sel = over.g.id;
     toast("Label box snapped to the prediction");
   } else {
     const id = `new_${Math.random().toString(36).slice(2, 9)}`;
-    lb.gt.push({ id, label: p.label, bbox: b });
+    lb.gt.push({ id, label: p.label, bbox: b, pts: p.points ? p.points.map((q) => [...q]) : null, shape: p.points ? (p.shape || null) : null });
     lb.sel = id;
     toast(`Added "${p.label}" as a label box`);
   }
@@ -1006,6 +1026,20 @@ function hitTest(pt) {
 
 const CURSORS = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
 
+/** Points of an OBB / polygon moved and scaled from box b0 to box nb (null for plain boxes). */
+function fitPts(p0, b0, nb) {
+  if (!p0) return null;
+  const sx = b0[2] > 1e-9 ? nb[2] / b0[2] : 1, sy = b0[3] > 1e-9 ? nb[3] / b0[3] : 1;
+  return p0.map(([x, y]) => [nb[0] + (x - b0[0]) * sx, nb[1] + (y - b0[1]) * sy]);
+}
+
+/** Shape for a box drawn in the editor: OBB datasets keep OBB labels (the 4 corners). */
+function newBoxShape(r) {
+  const style = state.info && state.info.label_shape;
+  if (style !== "obb" && style !== "polygon") return { pts: null, shape: null };
+  return { pts: [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0] + r[2], r[1] + r[3]], [r[0], r[1] + r[3]]], shape: style };
+}
+
 function resizeBox(b0, handle, dx, dy) {
   let [x1, y1, x2, y2] = [b0[0], b0[1], b0[0] + b0[2], b0[1] + b0[3]];
   if (handle.includes("w")) x1 += dx;
@@ -1052,7 +1086,8 @@ function resizeBox(b0, handle, dx, dy) {
     const p = toNorm(pt);
     if (hit) {
       lb.sel = hit.box.id;
-      lb.drag = { type: hit.handle ? "resize" : "move", handle: hit.handle, start: p, b0: [...hit.box.bbox], snap: JSON.stringify(lb.gt), box: hit.box };
+      lb.drag = { type: hit.handle ? "resize" : "move", handle: hit.handle, start: p, b0: [...hit.box.bbox],
+        p0: hit.box.pts ? hit.box.pts.map((q) => [...q]) : null, snap: JSON.stringify(lb.gt), box: hit.box };
       renderLightboxAnnotations();
     } else {
       lb.sel = null;
@@ -1099,6 +1134,7 @@ function resizeBox(b0, handle, dx, dy) {
         const [, , w, h] = d.b0;
         d.box.bbox = [Math.min(1 - w, Math.max(0, d.b0[0] + dx)), Math.min(1 - h, Math.max(0, d.b0[1] + dy)), w, h];
       } else if (d.type === "resize") d.box.bbox = resizeBox(d.b0, d.handle, dx, dy);
+      if (d.type !== "draw") d.box.pts = fitPts(d.p0, d.b0, d.box.bbox);
     }
     drawLightbox();
   });
@@ -1114,7 +1150,7 @@ function resizeBox(b0, handle, dx, dy) {
         if (!lb.cls) return toast("Pick a class first", true);
         snapshot();
         const id = `new_${Math.random().toString(36).slice(2, 9)}`;
-        lb.gt.push({ id, label: lb.cls, bbox: r });
+        lb.gt.push({ id, label: lb.cls, bbox: r, ...newBoxShape(r) });
         lb.sel = id;
         commitGt();
         return;
@@ -1151,7 +1187,9 @@ function resizeBox(b0, handle, dx, dy) {
       const dx = k === "ArrowLeft" ? -step / T.w : k === "ArrowRight" ? step / T.w : 0;
       const dy = k === "ArrowUp" ? -step / T.h : k === "ArrowDown" ? step / T.h : 0;
       snapshot();
+      const b0 = [...sel.bbox];
       sel.bbox = [Math.min(1 - sel.bbox[2], Math.max(0, sel.bbox[0] + dx)), Math.min(1 - sel.bbox[3], Math.max(0, sel.bbox[1] + dy)), sel.bbox[2], sel.bbox[3]];
+      sel.pts = fitPts(sel.pts, b0, sel.bbox);
       commitGt();
     } else if (k === "ArrowLeft") navigateLightbox(-1);
     else if (k === "ArrowRight") navigateLightbox(1);

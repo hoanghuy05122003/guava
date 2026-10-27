@@ -93,10 +93,18 @@ class DatasetManager:
             "format": self.dataset.format or "native",
             "path": self.dataset_path,
             "classes": self._class_list(),
+            "label_shape": self._label_shape(),
             "dirty_count": len(self.dirty),
             "eval_stale": self.eval_stale,
             "can_save_labels": any("label_path" in s.fields for s in self.dataset.samples),
         }
+
+    def _label_shape(self) -> str:
+        """Most common kind of ground-truth box: "box", "obb" or "polygon" (new boxes follow it)."""
+        from collections import Counter
+        kinds = Counter(a.attributes.get("shape") or "box"
+                        for s in (self.dataset.samples if self.dataset else []) for a in s.ground_truth)
+        return kinds.most_common(1)[0][0] if kinds else "box"
 
     def _class_list(self) -> list[str]:
         """Classes to offer in the label editor: schema order, then any other GT label."""
@@ -372,7 +380,8 @@ def _ann_out(a: Annotation, s: Sample, model: str | None = None) -> dict[str, An
         out["bounding_box"] = b.bounding_box
         out["is_normalized"] = b.is_normalized
         if a.attributes.get("points"):
-            out["points"] = a.attributes["points"]
+            out["points"] = a.attributes["points"]  # normalized OBB / polygon outline
+            out["shape"] = a.attributes.get("shape") or ("obb" if len(a.attributes["points"]) == 4 else "polygon")
     elif getattr(a, "points", None):
         out["points"] = a.points  # type: ignore[attr-defined]
         out["is_normalized"] = False
@@ -925,8 +934,9 @@ def _clamp01(v: Any) -> float:
 async def endpoint_set_ground_truth(request: Request) -> JSONResponse:
     """Replace a sample's box ground truth with the editor's list.
 
-    body: {sample_id, boxes: [{id?, label, bbox: [x, y, w, h] normalized}], model?, min_conf?}
-    Non-box ground truth (polygons, classification labels) is kept as it is.
+    body: {sample_id, boxes: [{id?, label, bbox: [x, y, w, h] normalized, points?: [[x, y], ...],
+    shape?: "obb" | "polygon"}], model?, min_conf?}. With points, bbox is recomputed from them.
+    Non-box ground truth (classification labels) is kept as it is.
     """
     try:
         body = await request.json()
@@ -938,6 +948,12 @@ async def endpoint_set_ground_truth(request: Request) -> JSONResponse:
         new_boxes: list[Annotation] = []
         for b in body.get("boxes", []):
             label = str(b.get("label") or "").strip()
+            pts = [[_clamp01(px), _clamp01(py)] for px, py in (b.get("points") or [])]
+            if len(pts) >= 3:
+                xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                b["bbox"] = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+            else:
+                pts = []
             x, y, w, h = (float(v) for v in b["bbox"])
             x, y = _clamp01(x), _clamp01(y)
             w, h = min(_clamp01(w), 1.0 - x), min(_clamp01(h), 1.0 - y)
@@ -947,7 +963,11 @@ async def endpoint_set_ground_truth(request: Request) -> JSONResponse:
             ann = BboxAnnotation(label=label, x=x, y=y, w=w, h=h, is_normalized=True)
             if prev is not None:
                 ann.id = prev.id
-                ann.attributes = {k: v for k, v in prev.attributes.items() if not k.startswith("eval")}
+                ann.attributes = {k: v for k, v in prev.attributes.items()
+                                  if not k.startswith("eval") and k not in ("points", "shape")}
+            if pts:
+                ann.attributes["points"] = pts
+                ann.attributes["shape"] = b.get("shape") or ("obb" if len(pts) == 4 else "polygon")
             mgr.dataset.schema.get_or_create(label)
             new_boxes.append(ann)
         kept = [a for a in sample.annotations if not (isinstance(a, BboxAnnotation) and a.id in old)]
@@ -1011,17 +1031,16 @@ async def endpoint_save_labels(request: Request) -> JSONResponse:
         mgr.saved_classes = classes
 
     index = {c: i for i, c in enumerate(classes)}
+    from guava.io.yolo import format_label_line
+    # an OBB dataset keeps OBB lines: a box drawn in the editor is written as its 4 corners
+    as_obb = any(a.attributes.get("shape") == "obb" for s in mgr.dataset.samples for a in s.ground_truth)
     written = 0
     for s in samples:
         path = s.fields["label_path"]
         _backup(path, backup_root, mgr.dataset_path)
         w, h = s.metadata.width, s.metadata.height
-        lines = []
-        for a in s.ground_truth:
-            if not isinstance(a, BboxAnnotation):
-                continue
-            b = a if a.is_normalized else a.to_normalized(w, h)
-            lines.append(f"{index[a.label]} {b.x + b.w / 2:.6f} {b.y + b.h / 2:.6f} {b.w:.6f} {b.h:.6f}\n")
+        lines = [format_label_line(a, index[a.label], w, h, as_obb=as_obb)
+                 for a in s.ground_truth if isinstance(a, BboxAnnotation)]
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.writelines(lines)

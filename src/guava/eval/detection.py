@@ -45,6 +45,40 @@ def _norm_boxes(anns: list[BboxAnnotation], sample: Sample) -> np.ndarray:
     return out
 
 
+def _shape_points(a: BboxAnnotation, sample: Sample) -> list[list[float]]:
+    """Normalized outline of an annotation: its OBB / polygon points, or the box corners."""
+    pts = a.attributes.get("points")
+    if pts and len(pts) >= 3:
+        return pts
+    w, h = sample.metadata.width or 1, sample.metadata.height or 1
+    b = a if a.is_normalized else a.to_normalized(w, h)
+    return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]
+
+
+def shape_iou_matrix(a_anns: list[BboxAnnotation], b_anns: list[BboxAnnotation], sample: Sample) -> np.ndarray:
+    """IoU between annotations. Plain boxes: box IoU. As soon as an oriented box (OBB) or a
+    polygon is involved, the IoU of the real shapes (shapely), so a rotated box is not judged
+    by its axis-aligned envelope. Normalized coordinates are fine: IoU does not change when
+    the x and y axes are scaled."""
+    box = iou_matrix(_norm_boxes(a_anns, sample), _norm_boxes(b_anns, sample))
+    if not any(x.attributes.get("points") for x in [*a_anns, *b_anns]):
+        return box
+    try:
+        from shapely.geometry import Polygon
+    except ImportError:
+        return box
+    def poly(x):
+        p = Polygon(_shape_points(x, sample))
+        return p if p.is_valid else p.buffer(0)
+    pa, pb = [poly(x) for x in a_anns], [poly(x) for x in b_anns]
+    out = np.zeros_like(box)
+    for i, j in zip(*np.nonzero(box > 0)):  # shapes can only overlap where their envelopes do
+        inter = pa[i].intersection(pb[j]).area
+        uni = pa[i].area + pb[j].area - inter
+        out[i, j] = inter / uni if uni > 0 else 0.0
+    return out
+
+
 def iou_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     if len(a) == 0 or len(b) == 0:
         return np.zeros((len(a), len(b)))
@@ -270,7 +304,7 @@ def evaluate_detections(
             n_gt[g.label] += 1
 
         # mAP: every stored prediction
-        ious_all = iou_matrix(_norm_boxes(preds, s), _norm_boxes(gts, s))
+        ious_all = shape_iou_matrix(preds, gts, s)
         conf_all = np.array([p.confidence or 0.0 for p in preds])
         order_all = np.argsort(-conf_all, kind="stable")
         if classwise:
@@ -474,7 +508,7 @@ def sample_in_confusion_cell(
     if pred_label == BACKGROUND:
         return any(g.label == gt_label and gt_eval(g, model) == "fn" for g in gts)
     preds = [p for p in preds if p.attributes.get("eval") in ("tp", "fp")]  # boxes at the operating conf
-    ious = iou_matrix(_norm_boxes(preds, sample), _norm_boxes(gts, sample))
+    ious = shape_iou_matrix(preds, gts, sample)
     for i, p in enumerate(preds):
         if plabel(p) != pred_label:
             continue

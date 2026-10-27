@@ -137,6 +137,10 @@ The sidebar starts with **Label vs prediction**: per model `✓ correct · FP ·
 
 ![Lightbox, overlay view](docs/images/lightbox.png)
 
+#### Oriented boxes (OBB) and polygons
+
+YOLO label files are read in every Ultralytics format: `class cx cy w h` (box), `class x1 y1 … x4 y4` (OBB) and `class x1 y1 … xn yn` (segmentation polygon). OBB / polygon labels and the predictions of OBB / segmentation models are drawn as their real outline, and the evaluation matches them by the IoU of the real shapes (shapely), not of their axis-aligned envelopes. Class names come from `classes.txt` / `data.yaml` in the dataset folder or up to two parent folders.
+
 ### 4. Edit labels
 
 ![Label editor](docs/images/lightbox-edit.png)
@@ -157,7 +161,7 @@ The sidebar starts with **Label vs prediction**: per model `✓ correct · FP ·
 
 Every change is applied right away: the image's TP / FP / missed status is recomputed for every model, its card in the grid is redrawn, and **💾 Save labels (n)** appears in the top bar. Dataset totals (mAP, confusion matrix) are refreshed on the next **Re-evaluate**; the Evaluate and Compare windows say so until then.
 
-**💾 Save labels** (`Ctrl+S`) writes the edited images back to the **YOLO label files** they were loaded from (`class cx cy w h`, same class order as `classes.txt` / `data.yaml`). Every file is first copied to `~/.guava/backups/<date-time>/`, keeping its path relative to the dataset folder. A new class is appended to `classes.txt`; if the dataset only has `data.yaml`, add the class there first. Datasets that were not loaded from YOLO files keep edits through 💾 Workspace or 🔄 Export.
+**💾 Save labels** (`Ctrl+S`) writes the edited images back to the **YOLO label files** they were loaded from, in the same format (box, OBB or polygon; same class order as `classes.txt` / `data.yaml`). Moving or resizing an OBB / polygon moves and scales its points, and a box drawn in an OBB dataset is saved as an OBB. Every file is first copied to `~/.guava/backups/<date-time>/`, keeping its path relative to the dataset folder. A new class is appended to `classes.txt`; if the dataset only has `data.yaml`, add the class there first. Datasets that were not loaded from YOLO files keep edits through 💾 Workspace or 🔄 Export.
 
 ### 5. Compare two models
 

@@ -19,6 +19,76 @@ from guava.core.sample import ImageMetadata, Sample
 from guava.core.schema import Category, DatasetSchema
 
 
+def parse_label_line(line: str, classes: list[str], ann_id: str) -> BboxAnnotation | None:
+    """One YOLO label line, any of the Ultralytics label formats (all normalized):
+
+      class cx cy w h [conf]               detection box
+      class x1 y1 x2 y2 x3 y3 x4 y4        oriented box (OBB), shape "obb"
+      class x1 y1 ... xn yn  (n >= 3)       segmentation polygon, shape "polygon"
+
+    OBB and polygons become a BboxAnnotation holding the enclosing box, with the
+    corner points in attributes["points"] and the kind in attributes["shape"].
+    """
+    parts = line.strip().split()
+    if len(parts) < 5:
+        return None
+    try:
+        cls_idx = int(float(parts[0]))
+        vals = [float(v) for v in parts[1:]]
+    except ValueError:
+        return None
+    label = classes[cls_idx] if 0 <= cls_idx < len(classes) else f"class_{cls_idx}"
+    if len(vals) in (4, 5):
+        cx, cy, nw, nh = vals[:4]
+        conf = vals[4] if len(vals) == 5 else 1.0
+        return BboxAnnotation(id=ann_id, label=label, x=max(0.0, cx - nw / 2.0), y=max(0.0, cy - nh / 2.0),
+                              w=nw, h=nh, is_normalized=True, confidence=conf)
+    if len(vals) % 2:
+        return None
+    pts = [[vals[i], vals[i + 1]] for i in range(0, len(vals), 2)]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    x1, y1 = max(0.0, min(xs)), max(0.0, min(ys))
+    x2, y2 = min(1.0, max(xs)), min(1.0, max(ys))
+    return BboxAnnotation(id=ann_id, label=label, x=x1, y=y1, w=max(0.0, x2 - x1), h=max(0.0, y2 - y1),
+                          is_normalized=True, confidence=1.0,
+                          attributes={"points": pts, "shape": "obb" if len(pts) == 4 else "polygon"})
+
+
+def format_label_line(ann: BboxAnnotation, cls_idx: int, w: int | None, h: int | None, as_obb: bool = False) -> str:
+    """Inverse of parse_label_line: OBB / polygon annotations keep their points; a plain box
+    is written as `cx cy w h`, or as its 4 corners when `as_obb` (OBB datasets)."""
+    pts = ann.attributes.get("points")
+    if not pts:
+        b = ann if ann.is_normalized else ann.to_normalized(w or 1, h or 1)
+        if not as_obb:
+            return f"{cls_idx} {b.x + b.w / 2:.6f} {b.y + b.h / 2:.6f} {b.w:.6f} {b.h:.6f}\n"
+        pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]
+    return f"{cls_idx} " + " ".join(f"{float(x):.6f} {float(y):.6f}" for x, y in pts) + "\n"
+
+
+def _find_class_file(data_dir: str) -> tuple[str | None, str | None]:
+    """classes.txt / data.yaml (or another *.yaml with names:) in the folder or up to 2 parents."""
+    d = os.path.abspath(data_dir)
+    for _ in range(3):
+        txt = os.path.join(d, "classes.txt")
+        if os.path.exists(txt):
+            return txt, None
+        yamls = [os.path.join(d, "data.yaml")] + sorted(glob.glob(os.path.join(d, "*.yaml")))
+        for y in yamls:
+            if os.path.exists(y):
+                try:
+                    with open(y, "r", encoding="utf-8") as f:
+                        if "names" in f.read():
+                            return None, y
+                except OSError:
+                    pass
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return None, None
+
+
 def load_yolo(
     data_dir: str,
     classes_file: str | None = None,
@@ -33,9 +103,10 @@ def load_yolo(
         with open(classes_file, "r", encoding="utf-8") as f:
             classes = [line.strip() for line in f if line.strip()]
     else:
-        # Check standard locations
-        txt_classes = os.path.join(data_dir, "classes.txt")
-        yaml_classes = os.path.join(data_dir, "data.yaml")
+        # Check standard locations (also in the parent folders, for a path pointing at images/ or train/)
+        txt_classes, yaml_classes = _find_class_file(data_dir)
+        txt_classes = txt_classes or os.path.join(data_dir, "classes.txt")
+        yaml_classes = yaml_classes or os.path.join(data_dir, "data.yaml")
         if os.path.exists(txt_classes):
             with open(txt_classes, "r", encoding="utf-8") as f:
                 classes = [line.strip() for line in f if line.strip()]
@@ -93,27 +164,9 @@ def load_yolo(
         if os.path.exists(label_path):
             with open(label_path, "r", encoding="utf-8") as f:
                 for line_idx, line in enumerate(f):
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        cls_idx = int(parts[0])
-                        cx, cy, nw, nh = [float(v) for v in parts[1:5]]
-                        label_name = classes[cls_idx] if cls_idx < len(classes) else f"class_{cls_idx}"
-                        # Convert (center_x, center_y, w, h) -> top-left (x, y, w, h)
-                        top_left_x = max(0.0, cx - nw / 2.0)
-                        top_left_y = max(0.0, cy - nh / 2.0)
-                        conf = float(parts[5]) if len(parts) > 5 else 1.0
-
-                        bbox = BboxAnnotation(
-                            id=f"{base_name}_{line_idx}",
-                            label=label_name,
-                            x=top_left_x,
-                            y=top_left_y,
-                            w=nw,
-                            h=nh,
-                            is_normalized=True,
-                            confidence=conf,
-                        )
-                        sample.add_annotation(bbox)
+                    ann = parse_label_line(line, classes, f"{base_name}_{line_idx}")
+                    if ann is not None:
+                        sample.add_annotation(ann)
 
         samples.append(sample)
 
@@ -174,12 +227,8 @@ def export_yolo(
         label_file = os.path.join(label_dir, f"{sample.id}.txt")
         with open(label_file, "w", encoding="utf-8") as f:
             for ann in sample.annotations:
-                if isinstance(ann, BboxAnnotation):
-                    norm_box = ann.to_normalized(w, h)
-                    cls_idx = class_to_idx.get(ann.label, 0)
-                    cx = norm_box.x + norm_box.w / 2.0
-                    cy = norm_box.y + norm_box.h / 2.0
-                    f.write(f"{cls_idx} {cx:.6f} {cy:.6f} {norm_box.w:.6f} {norm_box.h:.6f}\n")
+                if isinstance(ann, BboxAnnotation) and ann.attributes.get("kind") != "prediction":
+                    f.write(format_label_line(ann, class_to_idx.get(ann.label, 0), w, h))
 
         if copy_images and sample.filepath and os.path.exists(sample.filepath):
             os.makedirs(img_dest_dir, exist_ok=True)

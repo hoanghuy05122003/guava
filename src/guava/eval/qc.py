@@ -27,7 +27,7 @@ import numpy as np
 
 from guava.core.dataset import Dataset
 from guava.core.sample import Sample
-from guava.eval.detection import _greedy_match, _norm_boxes, iou_matrix, split_annotations
+from guava.eval.detection import _greedy_match, shape_iou_matrix, split_annotations
 from guava.models.apply import sample_ran
 
 # classes treated as critical by default: "defect", "scratch", "crack", ... anywhere, "NG" as its own token
@@ -57,7 +57,7 @@ def _match_inputs(sample: Sample, model: str | None, conf: float = 0.0):
     preds = [p for p in preds if (p.confidence or 0.0) >= conf]
     pconf = np.array([p.confidence or 0.0 for p in preds], dtype=np.float64)
     order = np.argsort(-pconf, kind="stable")
-    ious = iou_matrix(_norm_boxes(preds, sample), _norm_boxes(gts, sample))
+    ious = shape_iou_matrix(preds, gts, sample)
     same = np.array([[p.label == g.label for g in gts] for p in preds], dtype=bool).reshape(len(preds), len(gts))
     return gts, preds, pconf, order, ious, same
 

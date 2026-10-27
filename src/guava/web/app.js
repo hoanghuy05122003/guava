@@ -476,33 +476,28 @@ function drawDetections(ctx, detections, imgW, imgH, isPred) {
       else if (det.eval === "tp" && isPred) borderColor = "#22c55e";
     } else if (det.eval === "fn") borderColor = "#f43f5e";
 
-    // Segmentation / OBB polygon outline
-    if (det.points && det.points.length > 2) {
+    // OBB / polygon: outline the real shape; plain box: the rectangle
+    const poly = det.points && det.points.length > 2
+      ? det.points.map(([px, py]) => [det.is_normalized === false ? px : px * imgW, det.is_normalized === false ? py : py * imgH])
+      : null;
+    const shapePath = () => {
       ctx.beginPath();
-      det.points.forEach(([px, py], i) => {
-        const X = det.is_normalized === false ? px : px * imgW;
-        const Y = det.is_normalized === false ? py : py * imgH;
-        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
-      });
-      ctx.closePath();
-      ctx.fillStyle = `${borderColor}33`;
-      ctx.fill();
-    }
-
-    // Draw Rectangle
+      if (poly) {
+        poly.forEach(([X, Y], i) => (i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y)));
+        ctx.closePath();
+      } else {
+        ctx.rect(x, y, w, h);
+      }
+    };
     ctx.lineWidth = (det.eval === "fn" || det.eval === "fp" ? 3.5 : 2.5) * scale;
     ctx.strokeStyle = borderColor;
-    if (isPred) {
-      ctx.setLineDash((ms ? ms.dash : [4, 4]).map((v) => v * scale));
-    } else {
-      ctx.setLineDash([]);
-    }
-    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash(isPred ? (ms ? ms.dash : [4, 4]).map((v) => v * scale) : []);
+    shapePath();
+    ctx.stroke();
     ctx.setLineDash([]);
-
-    // Fill subtle semi-transparent background
+    // subtle fill
     ctx.fillStyle = `${borderColor}22`;
-    ctx.fillRect(x, y, w, h);
+    ctx.fill();
 
     // Draw Label Badge (preds above the box, GT below it, so both stay readable)
     if (state.showLabels) {
